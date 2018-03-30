@@ -313,6 +313,7 @@ extern  dbg_ctx_t               dbg_context;
 extern  BOOL                    dbg_interactiveP;
 extern  HANDLE                  dbg_houtput;
 extern  struct list             dbg_process_list;
+extern  BOOL                    dbg_use_wine_dbg_output;
 
 struct dbg_internal_var
 {
