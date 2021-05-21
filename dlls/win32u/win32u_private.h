@@ -88,6 +88,7 @@ extern void unregister_imm_window( HWND hwnd );
 /* input.c */
 extern BOOL grab_pointer;
 extern BOOL grab_fullscreen;
+extern BOOL is_mouse_in_pointer_enabled( HWND hwnd );
 extern HWND get_active_window(void);
 extern HWND get_capture(void);
 extern HWND get_focus(void);
