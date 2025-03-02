@@ -128,6 +128,8 @@ enum {
     BOOL beenActive;
 
     NSMutableSet* windowsBeingDragged;
+    // CrossOver Hack 10912: Mac Edit menu
+    NSMutableArray* changedKeyEquivalents;
 }
 
 @property (nonatomic) CGEventSourceKeyboardType keyboardType;
@@ -166,6 +168,9 @@ enum {
 
     - (BOOL) handleEvent:(NSEvent*)anEvent;
     - (void) didSendEvent:(NSEvent*)anEvent;
+
+    // CrossOver Hack 10912: Mac Edit menu
+    - (BOOL) isEditMenuAction:(SEL)selector;
 
 @end
 
