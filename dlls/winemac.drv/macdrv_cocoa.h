@@ -87,6 +87,22 @@ enum {
     TOPMOST_FLOAT_INACTIVE_ALL,
 };
 
+/* CrossOver Hack 10912: Mac Edit menu */
+enum {
+    MAC_EDIT_MENU_DISABLED,
+    MAC_EDIT_MENU_BY_MESSAGE,
+    MAC_EDIT_MENU_BY_KEY,
+};
+
+enum {
+    EDIT_COMMAND_COPY,
+    EDIT_COMMAND_CUT,
+    EDIT_COMMAND_DELETE,
+    EDIT_COMMAND_PASTE,
+    EDIT_COMMAND_SELECT_ALL,
+    EDIT_COMMAND_UNDO,
+};
+
 enum {
     GL_SURFACE_IN_FRONT_OPAQUE,
     GL_SURFACE_IN_FRONT_TRANSPARENT,
@@ -115,6 +131,8 @@ struct macdrv_query;
 extern bool macdrv_err_on;
 extern int topmost_float_inactive;
 extern bool capture_displays_for_fullscreen;
+/* CrossOver Hack 10912: Mac Edit menu */
+extern int mac_edit_menu;
 extern bool left_option_is_alt;
 extern bool right_option_is_alt;
 extern bool left_command_is_ctrl;
@@ -273,6 +291,7 @@ enum {
     APP_DEACTIVATED,
     APP_QUIT_REQUESTED,
     DISPLAYS_CHANGED,
+    EDIT_MENU_COMMAND, /* CrossOver Hack 10912: Mac Edit menu */
     HOTKEY_PRESS,
     IM_SET_TEXT,
     KEY_PRESS,
@@ -326,6 +345,11 @@ typedef struct macdrv_event {
         struct {
             bool activating;
         }                                           displays_changed;
+        /* CrossOver Hack 10912: Mac Edit menu */
+        struct {
+            int             command;
+            unsigned long   time_ms;
+        }                                           edit_menu_command;
         struct {
             unsigned int    vkey;
             unsigned int    mod_flags;
