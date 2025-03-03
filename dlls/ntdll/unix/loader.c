@@ -1138,6 +1138,21 @@ static const unixlib_entry_t unix_call_funcs[] =
 };
 
 
+BOOL simulate_writecopy;  /* CW Hack 22996 */
+
+static void hacks_init(void)
+{
+    const char *env_str;
+
+    env_str = getenv("WINE_SIMULATE_WRITECOPY");
+    if (env_str) simulate_writecopy = atoi(env_str);
+    else simulate_writecopy = main_argc > 1 && (
+           strstr(main_argv[1], "UplayWebCore.exe")
+        || strstr(main_argv[1], "Battle.net.exe") /* CW HACK 23072 */
+        );
+}
+
+
 #ifdef _WIN64
 
 static NTSTATUS wow64_load_so_dll( void *args ) { return STATUS_INVALID_IMAGE_FORMAT; }
@@ -1992,6 +2007,7 @@ static void start_main_thread(void)
     signal_alloc_thread( teb );
     dbg_init();
     startup_info_size = server_init_process();
+    hacks_init();
     msync_init();
     esync_init();
     virtual_map_user_shared_data();
