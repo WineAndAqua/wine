@@ -7389,7 +7389,10 @@ then :
      for arch
      do
          case $arch in
-           i386|x86_64|arm|aarch64|arm64ec) cross_archs="$cross_archs $arch" ;;
+           i386|x86_64|arm|aarch64|arm64ec)
+             cross_archs="$cross_archs $arch"
+             test $HOST_ARCH = $arch || CFLAGS="$CFLAGS -DIS_WOW64_BUILD"
+             ;;
            *) as_fn_error $? "Unknown cross-compilation architecture '$arch'" "$LINENO" 5 ;;
          esac
      done
