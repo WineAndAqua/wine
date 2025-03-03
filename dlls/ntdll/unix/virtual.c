@@ -2919,7 +2919,7 @@ static NTSTATUS map_image_into_view( struct file_view *view, const WCHAR *filena
             update_arm64ec_ranges( view, nt, dir, &image_info->entry_point );
     }
 #endif
-    if (machine && machine != nt->FileHeader.Machine)
+    if (machine && machine != nt->FileHeader.Machine && !wow64_using_32bit_prefix)
     {
         status = STATUS_NOT_SUPPORTED;
         goto done;

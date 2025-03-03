@@ -88,6 +88,7 @@ const WCHAR system_dir[] = L"C:\\windows\\system32\\";
 static const WCHAR system_path[] = L"C:\\windows\\system32;C:\\windows\\system;C:\\windows";
 
 static BOOL is_prefix_bootstrap;  /* are we bootstrapping the prefix? */
+static BOOL wow64_using_32bit_prefix;  /* are we using a 32-bit-only prefix in wow64 mode? */
 static BOOL imports_fixup_done = FALSE;  /* set once the imports have been fixed up, before attaching them */
 static BOOL process_detaching = FALSE;  /* set on process detach to avoid deadlocks with thread detach */
 static int free_lib_count;   /* recursion depth of LdrUnloadDll calls */
@@ -3101,7 +3102,8 @@ static NTSTATUS find_builtin_without_file( const WCHAR *name, UNICODE_STRING *ne
 
     if (contains_path( name )) return status;
 
-    if (!is_prefix_bootstrap)
+    /* CW HACK 20810: In Wow64/32-bit-bottle mode, 64-bit DLLs (like wow64*) won't be present in the prefix. */
+    if (!is_prefix_bootstrap && !wow64_using_32bit_prefix)
     {
         /* 16-bit files can't be loaded from the prefix */
         if (!name[1] || wcscmp( name + wcslen(name) - 2, L"16" )) return status;
@@ -3177,6 +3179,22 @@ static NTSTATUS search_dll_file( LPCWSTR paths, LPCWSTR search, UNICODE_STRING *
     BOOL found_image = FALSE;
     NTSTATUS status = STATUS_DLL_NOT_FOUND;
     ULONG len;
+
+    /* CW HACK 20810:
+     * 32-bit bottles from CrossOver 20 and earlier contain a stub wow64cpu.dll.
+     * In Wow64/32-bit-bottle mode, this causes problems and isn't usable.
+     * Return DLL_NOT_FOUND so the builtin gets used instead.
+     */
+    if (wow64_using_32bit_prefix && !wcscmp(search, L"wow64cpu.dll"))
+        return STATUS_DLL_NOT_FOUND;
+
+    /* CW HACK 20810:
+     * 32-bit bottles from CrossOver 22 and earlier contain a fake win32u.dll.
+     * In Wow64/32-bit-bottle mode, this causes problems and isn't usable.
+     * Return DLL_NOT_FOUND so the builtin gets used instead.
+     */
+    if (wow64_using_32bit_prefix && !wcscmp(search, L"win32u.dll"))
+        return STATUS_DLL_NOT_FOUND;
 
     if (!paths) paths = default_load_path;
     len = wcslen( paths );
@@ -4137,6 +4155,7 @@ static void load_global_options(void)
 {
     OBJECT_ATTRIBUTES attr;
     UNICODE_STRING bootstrap_mode_str = RTL_CONSTANT_STRING( L"WINEBOOTSTRAPMODE" );
+    UNICODE_STRING wow6432bit_prefix_mode_str = RTL_CONSTANT_STRING( L"WINEWOW6432BPREFIXMODE" );
     UNICODE_STRING session_manager_str =
         RTL_CONSTANT_STRING( L"\\Registry\\Machine\\System\\CurrentControlSet\\Control\\Session Manager" );
     UNICODE_STRING val_str;
@@ -4145,6 +4164,10 @@ static void load_global_options(void)
     val_str.MaximumLength = 0;
     is_prefix_bootstrap =
         RtlQueryEnvironmentVariable_U( NULL, &bootstrap_mode_str, &val_str ) != STATUS_VARIABLE_NOT_FOUND;
+
+    val_str.MaximumLength = 0;
+    wow64_using_32bit_prefix =
+        RtlQueryEnvironmentVariable_U( NULL, &wow6432bit_prefix_mode_str, &val_str ) != STATUS_VARIABLE_NOT_FOUND;
 
     attr.Length = sizeof(attr);
     attr.RootDirectory = 0;
@@ -4267,7 +4290,21 @@ static void init_wow64( CONTEXT *context )
         build_wow64_main_module();
         build_ntdll_module();
 
-        if ((status = load_dll( NULL, wow64_path, 0, &wm, FALSE )))
+        /* CW HACK 20810: In Wow64/32-bit-bottle mode, load by name rather than full path */
+        if (wow64_using_32bit_prefix)
+        {
+            RTL_USER_PROCESS_PARAMETERS *params = NtCurrentTeb()->Peb->ProcessParameters;
+            static const WCHAR wow64_dll[] = L"wow64.dll";
+
+            default_load_path = params->DllPath.Buffer;
+            if (!default_load_path)
+                get_dll_load_path( params->ImagePathName.Buffer, NULL, dll_safe_mode, &default_load_path );
+            status = load_dll( NULL, wow64_dll, 0, &wm, FALSE );
+        }
+        else
+            status = load_dll( NULL, wow64_path, 0, &wm, FALSE );
+
+        if (status)
         {
             ERR( "could not load %s, status %lx\n", debugstr_w(wow64_path), status );
             NtTerminateProcess( GetCurrentProcess(), status );

@@ -1013,7 +1013,18 @@ BOOL WINAPI DECLSPEC_HOTPATCH IsProcessorFeaturePresent ( DWORD feature )
  */
 BOOL WINAPI DECLSPEC_HOTPATCH IsWow64Process2( HANDLE process, USHORT *machine, USHORT *native_machine )
 {
-    return set_ntstatus( RtlWow64GetProcessMachines( process, machine, native_machine ));
+    /* CX HACK 20810: in Wow64 with a 32-bit-only bottle, pretend we aren't in Wow64 */
+    UNICODE_STRING val_str, name_str = RTL_CONSTANT_STRING( L"WINEWOW6432BPREFIXMODE" );
+    val_str.MaximumLength = 0;
+
+    if (RtlQueryEnvironmentVariable_U( NULL, &name_str, &val_str ) != STATUS_VARIABLE_NOT_FOUND)
+    {
+        *machine = IMAGE_FILE_MACHINE_UNKNOWN;
+        if (native_machine) *native_machine = IMAGE_FILE_MACHINE_I386;
+        return STATUS_SUCCESS;
+    }
+    else
+        return set_ntstatus( RtlWow64GetProcessMachines( process, machine, native_machine ));
 }
 
 
@@ -1025,8 +1036,20 @@ BOOL WINAPI DECLSPEC_HOTPATCH IsWow64Process( HANDLE process, PBOOL wow64 )
     ULONG_PTR pbi;
     NTSTATUS status;
 
-    status = NtQueryInformationProcess( process, ProcessWow64Information, &pbi, sizeof(pbi), NULL );
-    if (!status) *wow64 = !!pbi;
+    /* CX HACK 20810: in Wow64 with a 32-bit-only bottle, pretend we aren't in Wow64 */
+    UNICODE_STRING val_str, name_str = RTL_CONSTANT_STRING( L"WINEWOW6432BPREFIXMODE" );
+    val_str.MaximumLength = 0;
+
+    if (RtlQueryEnvironmentVariable_U( NULL, &name_str, &val_str ) != STATUS_VARIABLE_NOT_FOUND)
+    {
+        status = STATUS_SUCCESS;
+        if (!status) *wow64 = FALSE;
+    }
+    else
+    {
+        status = NtQueryInformationProcess( process, ProcessWow64Information, &pbi, sizeof(pbi), NULL );
+        if (!status) *wow64 = !!pbi;
+    }
     return set_ntstatus( status );
 }
 
