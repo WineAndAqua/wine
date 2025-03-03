@@ -141,6 +141,15 @@ BOOL get_file_redirect( OBJECT_ATTRIBUTES *attr )
 
     if (!len) return FALSE;
 
+    /* CW HACK 20810: disable FS redirection when 32-bit-only bottle is being used */
+    {
+        UNICODE_STRING val_str, name_str = RTL_CONSTANT_STRING( L"WINEWOW6432BPREFIXMODE" );
+
+        val_str.MaximumLength = 0;
+        if (RtlQueryEnvironmentVariable_U( NULL, &name_str, &val_str ) != STATUS_VARIABLE_NOT_FOUND)
+            return FALSE;
+    }
+
     if (!attr->RootDirectory)
     {
         prefix_len = wcslen( windirW );
