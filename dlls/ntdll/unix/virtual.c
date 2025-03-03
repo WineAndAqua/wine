@@ -5080,6 +5080,16 @@ NTSTATUS WINAPI NtProtectVirtualMemory( HANDLE process, PVOID *addr_ptr, SIZE_T 
         {
             old = get_win32_prot( vprot, view->protect );
             status = set_protection( view, base, size, new_prot );
+
+            if (simulate_writecopy && status == STATUS_SUCCESS
+                && ((old == PAGE_WRITECOPY || old == PAGE_EXECUTE_WRITECOPY)))
+            {
+                TRACE("Setting VPROT_COPIED.\n");
+
+                set_page_vprot_bits(base, size, VPROT_COPIED, 0);
+                vprot |= VPROT_COPIED;
+                old = get_win32_prot( vprot, view->protect );
+            }
         }
         else status = STATUS_NOT_COMMITTED;
     }
