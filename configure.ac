@@ -794,7 +794,10 @@ AS_VAR_SET_IF([enable_archs],
      for arch
      do
          case $arch in
-           i386|x86_64|arm|aarch64|arm64ec) cross_archs="$cross_archs $arch" ;;
+           i386|x86_64|arm|aarch64|arm64ec)
+             cross_archs="$cross_archs $arch"
+             test $HOST_ARCH = $arch || CFLAGS="$CFLAGS -DIS_WOW64_BUILD"
+             ;;
            *) AC_MSG_ERROR([Unknown cross-compilation architecture '$arch']) ;;
          esac
      done],
