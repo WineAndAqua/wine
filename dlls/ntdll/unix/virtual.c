@@ -4530,6 +4530,58 @@ static void virtual_release_address_space(void)
 #endif  /* _WIN64 */
 
 
+/* CROSSOVER HACK: bug 17634 */
+static BOOL force_laa(void)
+{
+    static const WCHAR LargeAddressAwareW[] = {'L','a','r','g','e','A','d','d','r','e','s','s','A','w','a','r','e',0};
+    const char *e = getenv("WINE_LARGE_ADDRESS_AWARE");
+    UNICODE_STRING nameW, valuenameW;
+    HANDLE root, app_key = 0;
+    OBJECT_ATTRIBUTES attr;
+    char tmp[64];
+    KEY_VALUE_PARTIAL_INFORMATION *info = (KEY_VALUE_PARTIAL_INFORMATION *)tmp;
+    DWORD count;
+    BOOL result=FALSE;
+    WCHAR *app_name;
+
+    if ((app_name = ntdll_wcsrchr( main_wargv[0], '\\' ))) app_name++;
+    else app_name = main_wargv[0];
+
+    if ((e != NULL) && (*e != '\0' && *e != '0'))
+        return TRUE;
+
+    if (!open_hkcu_key( "Software\\Wine\\AppDefaults", &root ))
+    {
+        ULONG len = wcslen( app_name ) + 1;
+        nameW.Length = (len - 1) * sizeof(WCHAR);
+        nameW.Buffer = malloc( len * sizeof(WCHAR) );
+        wcscpy( nameW.Buffer, app_name );
+        InitializeObjectAttributes( &attr, &nameW, 0, root, NULL );
+
+        /* @@ Wine registry key: HKCU\Software\Wine\AppDefaults\app.exe */
+        NtOpenKey( &app_key, KEY_ALL_ACCESS, &attr );
+        NtClose( root );
+        free( nameW.Buffer );
+    }
+
+    if (app_key)
+    {
+        valuenameW.Length = sizeof(LargeAddressAwareW) - sizeof(WCHAR);
+        valuenameW.Buffer = (WCHAR*)LargeAddressAwareW;
+        if (!NtQueryValueKey( app_key, &valuenameW, KeyValuePartialInformation, tmp, sizeof(tmp)-1, &count))
+        {
+            if (info->DataLength >= sizeof(DWORD))
+            {
+                if ((*(DWORD *)info->Data) != 0)
+                    result = TRUE;
+            }
+        }
+        NtClose( app_key );
+    }
+
+    return result;
+}
+
 /***********************************************************************
  *           virtual_set_large_address_space
  *
@@ -4537,10 +4589,11 @@ static void virtual_release_address_space(void)
  */
 void virtual_set_large_address_space(void)
 {
+    BOOL large_address_space_active = ((main_image_info.ImageCharacteristics & IMAGE_FILE_LARGE_ADDRESS_AWARE) || force_laa());
     if (is_win64)
     {
         if (is_wow64())
-            user_space_wow_limit = ((main_image_info.ImageCharacteristics & IMAGE_FILE_LARGE_ADDRESS_AWARE) ? limit_4g : limit_2g) - 1;
+            user_space_wow_limit = (large_address_space_active ? limit_4g : limit_2g) - 1;
 #ifndef __APPLE__  /* don't free the zerofill section on macOS */
         else if ((main_image_info.DllCharacteristics & IMAGE_DLLCHARACTERISTICS_HIGH_ENTROPY_VA) &&
                  (main_image_info.DllCharacteristics & IMAGE_DLLCHARACTERISTICS_DYNAMIC_BASE))
@@ -4549,7 +4602,7 @@ void virtual_set_large_address_space(void)
     }
     else
     {
-        if (!(main_image_info.ImageCharacteristics & IMAGE_FILE_LARGE_ADDRESS_AWARE)) return;
+        if (!large_address_space_active) return;
         free_reserved_memory( (char *)0x80000000, address_space_limit );
     }
     user_space_limit = working_set_limit = address_space_limit;
