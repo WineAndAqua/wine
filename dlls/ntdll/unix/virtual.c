@@ -69,6 +69,7 @@
 # include <mach/task.h>
 # include <mach/thread_state.h>
 # include <mach/vm_map.h>
+# include <sys/utsname.h> /* CrossOver Hack #22011 */
 #undef host_page_size
 #endif
 
@@ -130,6 +131,7 @@ struct file_view
 #define VPROT_GUARD      0x10
 #define VPROT_COMMITTED  0x20
 #define VPROT_WRITEWATCH 0x40
+#define VPROT_COPIED     0x80
 /* per-mapping protection flags */
 #define VPROT_ARM64EC          0x0100  /* view may contain ARM64EC code */
 #define VPROT_SYSTEM           0x0200  /* system view (underlying mmap not under our control) */
@@ -1170,7 +1172,8 @@ static const char *get_prot_str( BYTE prot )
     buffer[0] = (prot & VPROT_COMMITTED) ? 'c' : '-';
     buffer[1] = (prot & VPROT_GUARD) ? 'g' : ((prot & VPROT_WRITEWATCH) ? 'H' : '-');
     buffer[2] = (prot & VPROT_READ) ? 'r' : '-';
-    buffer[3] = (prot & VPROT_WRITECOPY) ? 'W' : ((prot & VPROT_WRITE) ? 'w' : '-');
+    buffer[3] = (prot & VPROT_WRITECOPY) ? (prot & VPROT_COPIED ? 'w' : 'W')
+        : ((prot & VPROT_WRITE) ? 'w' : '-');
     buffer[4] = (prot & VPROT_EXEC) ? 'x' : '-';
     buffer[5] = 0;
     return buffer;
@@ -1702,7 +1705,11 @@ static NTSTATUS create_view( struct file_view **view_ret, void *base, size_t siz
  */
 static DWORD get_win32_prot( BYTE vprot, unsigned int map_prot )
 {
-    DWORD ret = VIRTUAL_Win32Flags[vprot & 0x0f];
+    DWORD ret;
+
+    if ((vprot & (VPROT_COPIED | VPROT_WRITECOPY)) == (VPROT_COPIED | VPROT_WRITECOPY))
+        vprot = (vprot & ~VPROT_WRITECOPY) | VPROT_WRITE;
+    ret = VIRTUAL_Win32Flags[vprot & 0x0f];
     if (vprot & VPROT_GUARD) ret |= PAGE_GUARD;
     if (map_prot & SEC_NOCACHE) ret |= PAGE_NOCACHE;
     return ret;
@@ -1802,6 +1809,23 @@ static int mprotect_range( void *base, size_t size, BYTE set, BYTE clear )
         count = 0;
     }
     return mprotect_exec( addr, count * host_page_size, prot );
+}
+
+static void *wine_mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset)
+{
+#if defined(__APPLE__) && defined(__x86_64__)
+    // In Catalina-and-later, mapping files with execute permissions can make
+    // Gatekeeper prompt the user, or just fail outright.
+    if (!(flags & MAP_ANON) && fd >= 0 && prot & PROT_EXEC)
+    {
+        void *ret = mmap(addr, len, prot & ~PROT_EXEC, flags, fd, offset);
+
+        if (ret != MAP_FAILED && mprotect(ret, len, prot))
+            WARN("failed to mprotect region: %d\n", errno);
+        return ret;
+    }
+#endif
+    return mmap(addr, len, prot, flags, fd, offset);
 }
 
 
@@ -2200,7 +2224,7 @@ static NTSTATUS map_file_into_view( struct file_view *view, int fd, size_t start
        and if alignment is correct */
     if ((!removable || (flags & MAP_SHARED)) && host_addr == map_addr && host_size == map_size)
     {
-        if (mmap( host_addr, host_size, prot, flags, fd, offset ) != MAP_FAILED)
+        if (wine_mmap( host_addr, host_size, prot, flags, fd, offset ) != MAP_FAILED)
             return STATUS_SUCCESS;
 
         switch (errno)
@@ -2557,7 +2581,7 @@ static NTSTATUS map_pe_header( void *ptr, size_t size, size_t map_size, int fd, 
 
     if (!*removable && map_size)
     {
-        if (mmap( ptr, map_size, PROT_READ | PROT_WRITE | PROT_EXEC,
+        if (wine_mmap( ptr, map_size, PROT_READ | PROT_WRITE | PROT_EXEC,
                   MAP_FIXED | MAP_PRIVATE, fd, 0 ) != MAP_FAILED)
         {
             if (size > map_size) pread( fd, (char *)ptr + map_size, size - map_size, map_size );
@@ -4094,7 +4118,7 @@ void virtual_map_user_shared_data(void)
         exit(1);
     }
     if ((res = server_get_unix_fd( section, 0, &fd, &needs_close, NULL, NULL )) ||
-        (user_shared_data != mmap( user_shared_data, page_size, PROT_READ, MAP_SHARED|MAP_FIXED, fd, 0 )))
+        (user_shared_data != wine_mmap( user_shared_data, page_size, PROT_READ, MAP_SHARED|MAP_FIXED, fd, 0 )))
     {
         ERR( "failed to remap the process USD: %d\n", res );
         exit(1);
