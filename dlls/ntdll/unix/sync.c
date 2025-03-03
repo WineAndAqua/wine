@@ -306,8 +306,8 @@ static unsigned int validate_open_object_attributes( const OBJECT_ATTRIBUTES *at
 /******************************************************************************
  *              NtCreateSemaphore (NTDLL.@)
  */
-NTSTATUS WINAPI NtCreateSemaphore( HANDLE *handle, ACCESS_MASK access, const OBJECT_ATTRIBUTES *attr,
-                                   LONG initial, LONG max )
+NTSTATUS WINAPI GPT_IMPORT(NtCreateSemaphore)( HANDLE *handle, ACCESS_MASK access, const OBJECT_ATTRIBUTES *attr,
+                                               LONG initial, LONG max )
 {
     unsigned int ret;
     data_size_t len;
@@ -338,6 +338,18 @@ NTSTATUS WINAPI NtCreateSemaphore( HANDLE *handle, ACCESS_MASK access, const OBJ
     return ret;
 }
 
+/* CW Hack 23015 */
+#if defined(__APPLE__) && defined(__x86_64__)
+
+NTSTATUS __attribute__((ms_abi)) msthunk_NtCreateSemaphore( HANDLE *handle, ACCESS_MASK access, const OBJECT_ATTRIBUTES *attr,
+                                                            LONG initial, LONG max )
+{
+    return sysv_NtCreateSemaphore( handle, access, attr, initial, max );
+}
+
+GPT_ABI_WRAPPER( NtCreateSemaphore );
+
+#endif
 
 /******************************************************************************
  *              NtOpenSemaphore (NTDLL.@)
@@ -414,7 +426,7 @@ NTSTATUS WINAPI NtQuerySemaphore( HANDLE handle, SEMAPHORE_INFORMATION_CLASS cla
 /******************************************************************************
  *              NtReleaseSemaphore (NTDLL.@)
  */
-NTSTATUS WINAPI NtReleaseSemaphore( HANDLE handle, ULONG count, ULONG *previous )
+NTSTATUS WINAPI GPT_IMPORT(NtReleaseSemaphore)( HANDLE handle, ULONG count, ULONG *previous )
 {
     unsigned int ret;
 
@@ -437,12 +449,23 @@ NTSTATUS WINAPI NtReleaseSemaphore( HANDLE handle, ULONG count, ULONG *previous 
     return ret;
 }
 
+/* CW Hack 23015 */
+#if defined(__APPLE__) && defined(__x86_64__)
+
+NTSTATUS __attribute__((ms_abi)) msthunk_NtReleaseSemaphore( HANDLE handle, ULONG count, ULONG *previous )
+{
+    return sysv_NtReleaseSemaphore( handle, count, previous );
+}
+
+GPT_ABI_WRAPPER( NtReleaseSemaphore );
+
+#endif
 
 /**************************************************************************
  *              NtCreateEvent (NTDLL.@)
  */
-NTSTATUS WINAPI NtCreateEvent( HANDLE *handle, ACCESS_MASK access, const OBJECT_ATTRIBUTES *attr,
-                               EVENT_TYPE type, BOOLEAN state )
+NTSTATUS WINAPI GPT_IMPORT(NtCreateEvent)( HANDLE *handle, ACCESS_MASK access, const OBJECT_ATTRIBUTES *attr,
+                                           EVENT_TYPE type, BOOLEAN state )
 {
     unsigned int ret;
     data_size_t len;
@@ -474,6 +497,18 @@ NTSTATUS WINAPI NtCreateEvent( HANDLE *handle, ACCESS_MASK access, const OBJECT_
     return ret;
 }
 
+/* CW Hack 23015 */
+#if defined(__APPLE__) && defined(__x86_64__)
+
+NTSTATUS __attribute__((ms_abi)) msthunk_NtCreateEvent( HANDLE *handle, ACCESS_MASK access, const OBJECT_ATTRIBUTES *attr,
+                                                        EVENT_TYPE type, BOOLEAN state )
+{
+    return sysv_NtCreateEvent( handle, access, attr, type, state );
+}
+
+GPT_ABI_WRAPPER( NtCreateEvent );
+
+#endif
 
 /******************************************************************************
  *              NtOpenEvent (NTDLL.@)
@@ -509,7 +544,7 @@ NTSTATUS WINAPI NtOpenEvent( HANDLE *handle, ACCESS_MASK access, const OBJECT_AT
 /******************************************************************************
  *              NtSetEvent (NTDLL.@)
  */
-NTSTATUS WINAPI NtSetEvent( HANDLE handle, LONG *prev_state )
+NTSTATUS WINAPI GPT_IMPORT(NtSetEvent)( HANDLE handle, LONG *prev_state )
 {
     /* This comment is a dummy to make sure this patch applies in the right place. */
     unsigned int ret;
@@ -531,11 +566,22 @@ NTSTATUS WINAPI NtSetEvent( HANDLE handle, LONG *prev_state )
     return ret;
 }
 
+/* CW Hack 23015 */
+#if defined(__APPLE__) && defined(__x86_64__)
+
+NTSTATUS __attribute__((ms_abi)) msthunk_NtSetEvent( HANDLE handle, LONG *prev_state )
+{
+    return sysv_NtSetEvent( handle, prev_state );
+}
+
+GPT_ABI_WRAPPER( NtSetEvent );
+
+#endif
 
 /******************************************************************************
  *              NtResetEvent (NTDLL.@)
  */
-NTSTATUS WINAPI NtResetEvent( HANDLE handle, LONG *prev_state )
+NTSTATUS WINAPI GPT_IMPORT(NtResetEvent)( HANDLE handle, LONG *prev_state )
 {
     /* This comment is a dummy to make sure this patch applies in the right place. */
     unsigned int ret;
@@ -558,21 +604,44 @@ NTSTATUS WINAPI NtResetEvent( HANDLE handle, LONG *prev_state )
     return ret;
 }
 
+/* CW Hack 23015 */
+#if defined(__APPLE__) && defined(__x86_64__)
+
+NTSTATUS __attribute__((ms_abi)) msthunk_NtResetEvent( HANDLE handle, LONG *prev_state )
+{
+    return sysv_NtResetEvent( handle, prev_state );
+}
+
+GPT_ABI_WRAPPER( NtResetEvent );
+
+#endif
 
 /******************************************************************************
  *              NtClearEvent (NTDLL.@)
  */
-NTSTATUS WINAPI NtClearEvent( HANDLE handle )
+NTSTATUS WINAPI GPT_IMPORT(NtClearEvent)( HANDLE handle )
 {
     /* FIXME: same as NtResetEvent ??? */
     return NtResetEvent( handle, NULL );
 }
 
+/* CW Hack 23015 */
+#if defined(__APPLE__) && defined(__x86_64__)
+
+NTSTATUS __attribute__((ms_abi)) msthunk_NtClearEvent( HANDLE handle )
+{
+    return sysv_NtClearEvent( handle );
+}
+
+GPT_ABI_WRAPPER( NtClearEvent );
+
+#endif
+
 
 /******************************************************************************
  *              NtPulseEvent (NTDLL.@)
  */
-NTSTATUS WINAPI NtPulseEvent( HANDLE handle, LONG *prev_state )
+NTSTATUS WINAPI GPT_IMPORT(NtPulseEvent)( HANDLE handle, LONG *prev_state )
 {
     unsigned int ret;
 
@@ -593,6 +662,17 @@ NTSTATUS WINAPI NtPulseEvent( HANDLE handle, LONG *prev_state )
     return ret;
 }
 
+/* CW Hack 23015 */
+#if defined(__APPLE__) && defined(__x86_64__)
+
+NTSTATUS __attribute__((ms_abi)) msthunk_NtPulseEvent( HANDLE handle, LONG *prev_state )
+{
+    return sysv_NtPulseEvent( handle, prev_state );
+}
+
+GPT_ABI_WRAPPER( NtPulseEvent );
+
+#endif
 
 /******************************************************************************
  *              NtQueryEvent (NTDLL.@)
