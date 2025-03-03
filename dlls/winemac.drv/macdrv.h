@@ -46,6 +46,9 @@ extern BOOL allow_software_rendering;
 
 extern UINT64 app_icon_callback;
 extern UINT64 app_quit_request_callback;
+extern UINT64 regcreateopenkeyexa_callback;
+extern UINT64 regqueryvalueexa_callback;
+extern UINT64 regsetvalueexa_callback;
 
 extern const char* debugstr_cf(CFTypeRef t);
 
