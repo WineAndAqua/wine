@@ -255,7 +255,12 @@ void get_thread_context( struct thread *thread, struct context_data *context, un
         context->flags |= SERVER_CTX_DEBUG_REGISTERS;
     }
     else
-        mach_set_error( ret );
+    {
+        /* CX HACK 21217: Fake debug registers on Apple Silicon */
+        fprintf( stderr, "%04x: thread_get_state failed on Apple Silicon - faking zero debug registers\n", thread->id );
+        memset( &context->debug, 0, sizeof(context->debug) );
+        context->flags |= SERVER_CTX_DEBUG_REGISTERS;
+    }
 done:
     mach_port_deallocate( mach_task_self(), port );
 #endif
