@@ -62,6 +62,9 @@ int enable_app_nap = FALSE;
 
 UINT64 app_icon_callback = 0;
 UINT64 app_quit_request_callback = 0;
+UINT64 regcreateopenkeyexa_callback = 0;
+UINT64 regqueryvalueexa_callback = 0;
+UINT64 regsetvalueexa_callback = 0;
 
 CFDictionaryRef localized_strings;
 
@@ -435,6 +438,9 @@ static NTSTATUS macdrv_init(void *arg)
 
     app_icon_callback = params->app_icon_callback;
     app_quit_request_callback = params->app_quit_request_callback;
+    regcreateopenkeyexa_callback = params->regcreateopenkeyexa_callback;
+    regqueryvalueexa_callback = params->regqueryvalueexa_callback;
+    regsetvalueexa_callback = params->regsetvalueexa_callback;
 
     status = SessionGetInfo(callerSecuritySession, NULL, &attributes);
     if (status != noErr || !(attributes & sessionHasGraphicAccess))
@@ -624,12 +630,18 @@ static NTSTATUS wow64_init(void *arg)
         ULONG strings;
         UINT64 app_icon_callback;
         UINT64 app_quit_request_callback;
+        UINT64 regcreateopenkeyexa_callback;
+        UINT64 regqueryvalueexa_callback;
+        UINT64 regsetvalueexa_callback;
     } *params32 = arg;
     struct init_params params;
 
     params.strings = UlongToPtr(params32->strings);
     params.app_icon_callback = params32->app_icon_callback;
     params.app_quit_request_callback = params32->app_quit_request_callback;
+    params.regcreateopenkeyexa_callback = params32->regcreateopenkeyexa_callback;
+    params.regqueryvalueexa_callback = params32->regqueryvalueexa_callback;
+    params.regsetvalueexa_callback = params32->regsetvalueexa_callback;
     return macdrv_init(&params);
 }
 
