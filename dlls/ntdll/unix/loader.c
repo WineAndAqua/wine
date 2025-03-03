@@ -1193,6 +1193,14 @@ static NTSTATUS find_builtin_dll( UNICODE_STRING *nt_name, void **module, SIZE_T
     NTSTATUS status = STATUS_DLL_NOT_FOUND;
     BOOL found_image = FALSE;
 
+    /* CX HACK 20810: in wow64/32-bit-bottle mode, use 32-bit builtin EXEs */
+    if (wow64_using_32bit_prefix &&
+        len > 4 &&
+        (nt_name->Buffer[len-3] == 'e' &&
+         nt_name->Buffer[len-2] == 'x' &&
+         nt_name->Buffer[len-1] == 'e'))
+        pe_dir = get_pe_dir( IMAGE_FILE_MACHINE_I386 );
+
     for (i = namepos = 0; i < len; i++)
         if (nt_name->Buffer[i] == '/' || nt_name->Buffer[i] == '\\') namepos = i + 1;
     len -= namepos;
@@ -1351,7 +1359,7 @@ static const WCHAR *get_machine_wow64_dir( WORD machine )
     static const WCHAR syswow64[] = {'\\','?','?','\\','C',':','\\','w','i','n','d','o','w','s','\\','s','y','s','w','o','w','6','4','\\',0};
     static const WCHAR sysarm32[] = {'\\','?','?','\\','C',':','\\','w','i','n','d','o','w','s','\\','s','y','s','a','r','m','3','2','\\',0};
 
-    if (machine == native_machine) machine = IMAGE_FILE_MACHINE_TARGET_HOST;
+    if (machine == native_machine || wow64_using_32bit_prefix) machine = IMAGE_FILE_MACHINE_TARGET_HOST;
 
     switch (machine)
     {
