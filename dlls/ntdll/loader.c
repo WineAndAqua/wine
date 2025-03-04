@@ -3387,6 +3387,17 @@ NTSTATUS WINAPI __wine_ctrl_routine( void *arg )
 
 
 /***********************************************************************
+ *              __wine_unix_call
+ *
+ * CW HACK 22435: Needed by D3DMetal PE DLLs
+ */
+NTSTATUS WINAPI __wine_unix_call_exported( unixlib_handle_t handle, unsigned int code, void *args )
+{
+    return __wine_unix_call( handle, code, args );
+}
+
+
+/***********************************************************************
  *           __wine_unix_spawnvp
  */
 NTSTATUS WINAPI __wine_unix_spawnvp( char * const argv[], int wait )
