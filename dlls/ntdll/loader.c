@@ -4509,6 +4509,24 @@ void loader_init( CONTEXT *context, void **entry )
         wm = get_modref( NtCurrentTeb()->Peb->ImageBaseAddress );
     }
 
+#if defined(__x86_64__) && !defined(__arm64ec__)
+        if (!NtCurrentTeb()->WowTebOffset)
+        {
+            /* CW HACK 18756 */
+            /* Preallocate TlsExpansionSlots.  Otherwise, kernelbase will
+               allocate it on demand, but won't be able to do the Mac-specific poking to the
+               %gs-relative address. */
+            if (!NtCurrentTeb()->TlsExpansionSlots)
+                NtCurrentTeb()->TlsExpansionSlots = RtlAllocateHeap( GetProcessHeap(), HEAP_ZERO_MEMORY, 8 * sizeof(NtCurrentTeb()->Peb->TlsExpansionBitmapBits) * sizeof(void*) );
+            __asm__ volatile ("movq %0,%%gs:%c1"
+                              :
+                              : "r" (NtCurrentTeb()->TlsExpansionSlots), "n" (FIELD_OFFSET(TEB, TlsExpansionSlots)));
+
+            if (!attach_done) /* only the first time */
+                while (RtlFindClearBitsAndSet(NtCurrentTeb()->Peb->TlsBitmap, 1, 1) != ~0U);
+        }
+#endif
+
     NtCurrentTeb()->FlsSlots = fls_alloc_data();
 
     if (!attach_done)  /* first time around */
