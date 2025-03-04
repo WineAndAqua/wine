@@ -1008,6 +1008,12 @@ static void save_context( struct xcontext *xcontext, const ucontext_t *sigcontex
 
         context->ContextFlags |= CONTEXT_FLOATING_POINT;
         memcpy( &context->FltSave, FPU_sig(sigcontext), sizeof(context->FltSave) );
+#ifdef __APPLE__
+        /* CW Hack 24256: mxcsr in signal contexts is incorrect in Rosetta.
+           In Rosetta only, the actual value of the register from within the
+           handler is correct (on Intel it has some default value). */
+        __asm__ volatile( "stmxcsr %0" : "=m" (context->FltSave.MxCsr) );
+#endif
         context->MxCsr = context->FltSave.MxCsr;
         if (xstate_extended_features && (xs = XState_sig(FPU_sig(sigcontext))))
         {
@@ -2545,6 +2551,15 @@ static void usr1_handler( int signal, siginfo_t *siginfo, void *sigcontext )
 
 
 #ifdef __APPLE__
+/* CW Hack 24265 */
+extern void __restore_mxcsr_thunk(void);
+__ASM_GLOBAL_FUNC( __restore_mxcsr_thunk,
+                   "pushq %rcx\n\t"
+                   "movq %gs:0x30,%rcx\n\t"
+                   "ldmxcsr 0x350(%rcx)\n\t"  /* amd64_thread_data()->mxcsr */
+                   "popq %rcx\n\t"
+                   "jmp " __ASM_LOCAL_LABEL("__wine_syscall_dispatcher_prolog_end") );
+
 /**********************************************************************
  *		sigsys_handler
  *
@@ -2572,6 +2587,27 @@ static void sigsys_handler( int signal, siginfo_t *siginfo, void *sigcontext )
         frame->restore_flags |= CONTEXT_CONTROL;
     }
     RIP_sig(ucontext) = (ULONG64)__wine_syscall_dispatcher_prolog_end_ptr;
+
+    /* CW Hack 24265 */
+    if (FPU_sig(ucontext))
+    {
+        XMM_SAVE_AREA32 fpu;
+        unsigned int direct_mxcsr;
+        __asm__ volatile( "stmxcsr %0" : "=m" (direct_mxcsr) );
+        memcpy( &fpu, FPU_sig(ucontext), sizeof(fpu) );
+
+        if (direct_mxcsr != fpu.MxCsr)
+        {
+            fpu.MxCsr = direct_mxcsr;
+            memcpy( FPU_sig(ucontext), &fpu, sizeof(fpu) );
+
+            /* On the M3, Rosetta will restore mxcsr to the initial, incorrect
+               value from the sigcontext, even if we change it. So we jump to a
+               thunk that restores the value from amd64_thread_data. */
+            amd64_thread_data()->mxcsr = direct_mxcsr;
+            RIP_sig(ucontext) = (ULONG64)__restore_mxcsr_thunk;
+        }
+    }
 }
 #endif
 
@@ -2779,6 +2815,7 @@ void init_syscall_frame( LPTHREAD_START_ROUTINE entry, void *arg, BOOL suspend, 
 #elif defined(__NetBSD__)
     sysarch( X86_64_SET_GSBASE, &teb );
 #elif defined (__APPLE__)
+    __asm__ volatile ("movq %0,%%gs:%c1" :: "r" (teb->Peb), "n" (FIELD_OFFSET(TEB, Peb)));
     thread_data->pthread_teb = mac_thread_gsbase();
 #else
 # error Please define setting %gs for your architecture
