@@ -93,7 +93,8 @@ static int display_mode_bits_per_pixel(CGDisplayModeRef display_mode)
 static BOOL display_mode_is_supported(CGDisplayModeRef display_mode)
 {
     uint32_t io_flags = CGDisplayModeGetIOFlags(display_mode);
-    return (io_flags & kDisplayModeValidFlag) && (io_flags & kDisplayModeSafeFlag);
+    /* CrossOver Hack #18576: don't check for kDisplayModeSafeFlag on Apple Silicon. */
+    return (io_flags & kDisplayModeValidFlag);
 }
 
 
