@@ -80,6 +80,12 @@ WINE_DECLARE_DEBUG_CHANNEL(seh);
 
 #include "dwarf.h"
 
+#ifdef __APPLE__
+/* CW Hack 24256 */
+#include <sys/sysctl.h>
+static BOOL is_rosetta2;
+#endif
+
 /***********************************************************************
  * signal context platform-specific definitions
  */
@@ -447,6 +453,9 @@ struct amd64_thread_data
     DWORD                 xstate_features_size;  /* 033c */
     UINT64                xstate_features_mask;  /* 0340 */
     void                **instrumentation_callback; /* 0348 */
+#ifdef __APPLE__  /* CW Hack 24265 */
+    DWORD                 mxcsr;         /* 350 */
+#endif
 };
 
 C_ASSERT( sizeof(struct amd64_thread_data) <= sizeof(((struct ntdll_thread_data *)0)->cpu_data) );
@@ -456,6 +465,9 @@ C_ASSERT( offsetof( TEB, GdiTebBatch ) + offsetof( struct amd64_thread_data, sys
 C_ASSERT( offsetof( TEB, GdiTebBatch ) + offsetof( struct amd64_thread_data, fs ) == 0x338 );
 C_ASSERT( offsetof( TEB, GdiTebBatch ) + offsetof( struct amd64_thread_data, xstate_features_size ) == 0x33c );
 C_ASSERT( offsetof( TEB, GdiTebBatch ) + offsetof( struct amd64_thread_data, xstate_features_mask ) == 0x340 );
+#ifdef __APPLE__  /* CW Hack 24265 */
+C_ASSERT( offsetof( TEB, GdiTebBatch ) + offsetof( struct amd64_thread_data, mxcsr ) == 0x350 );
+#endif
 
 static inline struct amd64_thread_data *amd64_thread_data(void)
 {
@@ -919,6 +931,13 @@ static void save_context( struct xcontext *xcontext, const ucontext_t *sigcontex
 
         context->ContextFlags |= CONTEXT_FLOATING_POINT;
         context->FltSave = *FPU_sig(sigcontext);
+#ifdef __APPLE__
+        /* CW Hack 24256: mxcsr in signal contexts is incorrect in Rosetta.
+           In Rosetta only, the actual value of the register from within the
+           handler is correct (on Intel it has some default value). */
+        if (is_rosetta2)
+            __asm__ volatile( "stmxcsr %0" : "=m" (context->FltSave.MxCsr) );
+#endif
         context->MxCsr = context->FltSave.MxCsr;
         if (xstate_extended_features() && (xs = XState_sig(FPU_sig(sigcontext))))
         {
@@ -2248,6 +2267,15 @@ static void usr1_handler( int signal, siginfo_t *siginfo, void *sigcontext )
 
 
 #ifdef __APPLE__
+/* CW Hack 24265 */
+extern void __restore_mxcsr_thunk(void);
+__ASM_GLOBAL_FUNC( __restore_mxcsr_thunk,
+                   "pushq %rcx\n\t"
+                   "movq %gs:0x30,%rcx\n\t"
+                   "ldmxcsr 0x350(%rcx)\n\t"  /* amd64_thread_data()->mxcsr */
+                   "popq %rcx\n\t"
+                   "jmp " __ASM_LOCAL_LABEL("__wine_syscall_dispatcher_prolog_end") );
+
 /**********************************************************************
  *		sigsys_handler
  *
@@ -2275,6 +2303,23 @@ static void sigsys_handler( int signal, siginfo_t *siginfo, void *sigcontext )
         frame->restore_flags |= CONTEXT_CONTROL;
     }
     RIP_sig(ucontext) = (ULONG64)__wine_syscall_dispatcher_prolog_end_ptr;
+
+    /* CW Hack 24265 */
+    if (is_rosetta2)
+    {
+        unsigned int direct_mxcsr;
+        __asm__ volatile( "stmxcsr %0" : "=m" (direct_mxcsr) );
+        if (direct_mxcsr != FPU_sig(ucontext)->MxCsr)
+        {
+            FPU_sig(ucontext)->MxCsr = direct_mxcsr;
+
+            /* On the M3, Rosetta will restore mxcsr to the initial, incorrect
+               value from the sigcontext, even if we change it. So we jump to a
+               thunk that restores the value from amd64_thread_data. */
+            amd64_thread_data()->mxcsr = direct_mxcsr;
+            RIP_sig(ucontext) = (ULONG64)__restore_mxcsr_thunk;
+        }
+    }
 }
 #endif
 
@@ -2553,6 +2598,19 @@ void signal_init_process(void)
     }
 #endif
 
+#ifdef __APPLE__
+    /* CW Hack 24256: We need the value of sysctl.proc_translated in signal
+       handlers but sysctl[byname] is not signal-safe. */
+    {
+        int ret = 0;
+        size_t size = sizeof(ret);
+        if (sysctlbyname( "sysctl.proc_translated", &ret, &size, NULL, 0 ) == -1)
+            is_rosetta2 = 0;
+        else
+            is_rosetta2 = ret;
+    }
+#endif
+
     sig_act.sa_mask = server_block_set;
     sig_act.sa_flags = SA_SIGINFO | SA_RESTART | SA_ONSTACK;
 
@@ -2611,6 +2669,7 @@ void call_init_thunk( LPTHREAD_START_ROUTINE entry, void *arg, BOOL suspend, TEB
 #elif defined (__APPLE__)
     __asm__ volatile ("movq %0,%%gs:%c1" :: "r" (teb->Tib.Self), "n" (FIELD_OFFSET(TEB, Tib.Self)));
     __asm__ volatile ("movq %0,%%gs:%c1" :: "r" (teb->ThreadLocalStoragePointer), "n" (FIELD_OFFSET(TEB, ThreadLocalStoragePointer)));
+    __asm__ volatile ("movq %0,%%gs:%c1" :: "r" (teb->Peb), "n" (FIELD_OFFSET(TEB, Peb)));
     thread_data->pthread_teb = mac_thread_gsbase();
     /* alloc_tls_slot() needs to poke a value to an address relative to each
        thread's gsbase.  Have each thread record its gsbase pointer into its
