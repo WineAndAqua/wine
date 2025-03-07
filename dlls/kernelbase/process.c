@@ -502,6 +502,88 @@ done:
     return ret;
 }
 
+static WCHAR *hack_replace_command_line(const WCHAR *cmd)
+{
+    static const struct
+    {
+        const WCHAR *substring;
+        const WCHAR *replacement;
+    }
+    replacements[] =
+    {
+        { L"\\Baldurs Gate 3\\Launcher\\LariLauncher.exe",
+          L"\\Baldurs Gate 3\\bin\\bg3_dx11.exe" },
+    };
+    WCHAR *new_command, *pos;
+    SIZE_T substring_len, replacement_len, new_len;
+    unsigned int i;
+
+    if (!cmd) return NULL;
+
+    for (i = 0; i < ARRAY_SIZE(replacements); ++i)
+    {
+        pos = wcsstr(cmd, replacements[i].substring);
+        if (!pos) continue;
+
+        substring_len = lstrlenW(replacements[i].substring);
+        replacement_len = lstrlenW(replacements[i].replacement);
+        new_len = lstrlenW(cmd);
+        if (replacement_len > substring_len)
+            new_len += replacement_len - substring_len;
+
+        new_command = RtlAllocateHeap(GetProcessHeap(), 0, sizeof(WCHAR) * (new_len + 1));
+
+        if (!new_command) return NULL;
+
+        lstrcpyW(new_command, cmd);
+        new_command[pos - cmd] = 0;
+        lstrcatW(new_command, replacements[i].replacement);
+        lstrcatW(new_command, pos + substring_len);
+
+        FIXME("HACK: replacing %s with %s\n", debugstr_w(cmd), debugstr_w(new_command));
+
+        return new_command;
+    }
+
+    return NULL;
+}
+
+static const WCHAR *hack_append_command_line( const WCHAR *cmd, const WCHAR *cmd_line )
+{
+    static const struct
+    {
+        const WCHAR *exe_name;
+        const WCHAR *append;
+        const WCHAR *required_args;
+        const WCHAR *forbidden_args;
+    }
+    options[] =
+    {
+        {L"steamwebhelper.exe", L" --no-sandbox --in-process-gpu --disable-gpu", NULL, L"--type=crashpad-handler"},
+        {L"Battle.net.exe", L" --in-process-gpu --use-gl=angle", NULL, NULL},
+        {L"redprelauncher.exe", L" --launcher-skip", NULL, NULL},
+        {L"REDprelauncher.exe", L" --launcher-skip", NULL, NULL},
+        {L"GalaxyClient.exe", L" --in-process-gpu --use-gl=angle", NULL, L"--type=crashpad-handler"},
+        {L"GalaxyClient Helper.exe", L" --in-process-gpu --use-gl=angle", NULL, L"--type=crashpad-handler"},
+        {L"GOG Galaxy Notifications Renderer.exe", L" --in-process-gpu --use-gl=angle", NULL, L"--type=crashpad-handler"},
+    };
+    unsigned int i;
+
+    if (!cmd) return NULL;
+
+    for (i = 0; i < ARRAY_SIZE(options); ++i)
+    {
+        if (wcsstr( cmd, options[i].exe_name )
+            && (!options[i].required_args || wcsstr(cmd_line, options[i].required_args))
+            && (!options[i].forbidden_args || !wcsstr(cmd_line, options[i].forbidden_args)))
+        {
+            FIXME( "HACK: appending %s to command line.\n", debugstr_w(options[i].append) );
+            return options[i].append;
+        }
+    }
+    return NULL;
+}
+
 /**********************************************************************
  *           CreateProcessInternalW   (kernelbase.@)
  */
@@ -518,6 +600,7 @@ BOOL WINAPI DECLSPEC_HOTPATCH CreateProcessInternalW( HANDLE token, const WCHAR 
     RTL_USER_PROCESS_PARAMETERS *params = NULL;
     RTL_USER_PROCESS_INFORMATION rtl_info;
     HANDLE parent = 0, debug = 0;
+    const WCHAR *append;
     ULONG nt_flags = 0;
     USHORT machine = 0;
     NTSTATUS status;
@@ -542,6 +625,39 @@ BOOL WINAPI DECLSPEC_HOTPATCH CreateProcessInternalW( HANDLE token, const WCHAR 
         if (!(tidy_cmdline = get_file_name( cmd_line, name, ARRAY_SIZE(name) ))) return FALSE;
         app_name = name;
     }
+
+    /* CROSSOVER HACK */
+    if ((append = hack_append_command_line( app_name, tidy_cmdline )))
+    {
+        WCHAR *new_cmdline = RtlAllocateHeap( GetProcessHeap(), 0,
+                                              sizeof(WCHAR) * (lstrlenW(cmd_line) + lstrlenW(append) + 1) );
+        lstrcpyW(new_cmdline, tidy_cmdline);
+        lstrcatW(new_cmdline, append);
+        if (tidy_cmdline != cmd_line) RtlFreeHeap( GetProcessHeap(), 0, tidy_cmdline );
+        tidy_cmdline = new_cmdline;
+    }
+    /* end CROSSOVER HACK */
+
+    /* CROSSOVER HACK: various; see hack_replace_command_line */
+    {
+        WCHAR *new_cmd;
+
+        if ((new_cmd = hack_replace_command_line(app_name)))
+        {
+            lstrcpyW(name, new_cmd);
+            app_name = name;
+            RtlFreeHeap( GetProcessHeap(), 0, new_cmd );
+        }
+
+        if ((new_cmd = hack_replace_command_line(tidy_cmdline)))
+        {
+            if (tidy_cmdline != cmd_line) RtlFreeHeap( GetProcessHeap(), 0, tidy_cmdline );
+            tidy_cmdline = new_cmd;
+        }
+    }
+    /* end CROSSOVER HACK */
+
+    TRACE( "app %s cmdline %s after all hacks\n", debugstr_w(app_name), debugstr_w(tidy_cmdline) );
 
     /* Warn if unsupported features are used */
 
