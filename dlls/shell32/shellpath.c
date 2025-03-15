@@ -3008,9 +3008,20 @@ HRESULT WINAPI SHGetFolderPathAndSubDirW(
         goto end;
     }
 
+    {
+        WCHAR szUserPath[MAX_PATH];
+        WCHAR userName[MAX_PATH];
+        DWORD userLen = MAX_PATH;
+
+        lstrcpyW( szUserPath, L"C:\\users\\" );
+        GetUserNameW( userName, &userLen );
+        PathAppendW( szUserPath, userName );
+        create_link( szUserPath, "", "$HOME/Wine" );
+    }
+
     /* create symbolic links rather than directories for specific
      * user shell folders */
-    _SHCreateSymbolicLink(folder, szBuildPath);
+    //_SHCreateSymbolicLink(folder, szBuildPath);
 
     /* create directory/directories */
     ret = SHCreateDirectoryExW(hwndOwner, szBuildPath, NULL);
