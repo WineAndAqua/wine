@@ -29,6 +29,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <dirent.h>
 #include <sys/stat.h>
 #ifdef HAVE_SYS_STATFS_H
 #include <sys/statfs.h>
@@ -488,6 +489,41 @@ static NTSTATUS detect_parallel_ports( void *args )
     return STATUS_SUCCESS;
 }
 
+static void remove_dir( const char *path ) {
+    struct dirent *entry;
+    DIR *dir;
+    char file_path[1024];
+    struct stat stat_buf;
+
+    dir = opendir( path );
+    if (dir)
+    {
+        while ((entry = readdir( dir )))
+        {
+            if (strcmp( entry->d_name, "." ) == 0 || strcmp( entry->d_name, ".." ) == 0)
+                continue;
+
+            snprintf( file_path, sizeof(file_path), "%s/%s", path, entry->d_name );
+
+            if (!lstat( file_path, &stat_buf ))
+            {
+                if (S_ISDIR( stat_buf.st_mode ))
+                {
+                    remove_dir( file_path );
+                }
+                else
+                {
+                    unlink( file_path );
+                }
+            }
+        }
+
+        closedir( dir );
+    }
+
+    rmdir( path );
+}
+
 static NTSTATUS set_shell_folder( void *args )
 {
     const struct set_shell_folder_params *params = args;
@@ -525,8 +561,7 @@ static NTSTATUS set_shell_folder( void *args )
             {
                 if (!backup || rename( folder, backup ))
                 {
-                    status = STATUS_OBJECT_NAME_COLLISION;
-                    goto done;
+                    remove_dir( folder );
                 }
             }
         }
