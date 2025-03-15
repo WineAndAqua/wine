@@ -431,6 +431,7 @@ static void set_home_dir(void)
     const char *home = getenv( "HOME" );
     const char *name = getenv( "USER" );
     const char *p;
+    char home_wine_dir[MAX_PATH];
 
     if (!home || !name)
     {
@@ -446,6 +447,9 @@ static void set_home_dir(void)
     if ((p = strrchr( name, '\\' ))) name = p + 1;
     home_dir = strdup( home );
     user_name = strdup( name );
+
+    sprintf( home_wine_dir, "%s/Wine", home ) ;
+    mkdir( home_wine_dir, 0777 );
 }
 
 
