@@ -67,7 +67,7 @@
 # define __ASM_GLOBL(name) ".globl " name
 # define __ASM_FUNC_SIZE(name) ""
 #elif defined(__APPLE__)
-# define __ASM_GLOBL(name) ".globl " name "\n\t.private_extern " name
+# define __ASM_GLOBL(name) ".globl " name
 # define __ASM_FUNC_SIZE(name) ""
 #else
 # define __ASM_GLOBL(name) ".globl " name "\n\t.hidden " name
