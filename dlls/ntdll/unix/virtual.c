@@ -3269,9 +3269,7 @@ static unsigned int virtual_map_section( HANDLE handle, PVOID *addr_ptr, ULONG_P
     res = map_file_into_view( view, unix_handle, 0, size, offset.QuadPart, vprot, needs_close );
     if (res == STATUS_SUCCESS)
     {
-        /* file mappings must always be accessible */
-        mprotect_range( view->base, view->size, VPROT_COMMITTED, 0 );
-
+        set_vprot( view, view->base, size, vprot );
         SERVER_START_REQ( map_view )
         {
             req->mapping = wine_server_obj_handle( handle );
