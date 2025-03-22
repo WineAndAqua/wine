@@ -2104,17 +2104,16 @@ static NTSTATUS map_file_into_view( struct file_view *view, int fd, size_t start
                                     off_t offset, unsigned int vprot, BOOL removable )
 {
     void *ptr;
-    int prot = PROT_READ | PROT_WRITE;
-    unsigned int flags = MAP_FIXED | ((vprot & VPROT_WRITE) ? MAP_SHARED : MAP_PRIVATE);
+    int prot = get_unix_prot( vprot | VPROT_COMMITTED /* make sure it is accessible */ );
+    unsigned int flags = MAP_FIXED | ((vprot & VPROT_WRITECOPY) ? MAP_PRIVATE : MAP_SHARED);
 
     assert( start < view->size );
     assert( start + size <= view->size );
 
-    if ((vprot & VPROT_EXEC) || force_exec_prot)
+    if (force_exec_prot && (vprot & VPROT_READ))
     {
-        if (!(vprot & VPROT_EXEC))
-            TRACE( "forcing exec permission on mapping %p-%p\n",
-                   (char *)view->base + start, (char *)view->base + start + size - 1 );
+        TRACE( "forcing exec permission on mapping %p-%p\n",
+               (char *)view->base + start, (char *)view->base + start + size - 1 );
         prot |= PROT_EXEC;
     }
 
@@ -2122,7 +2121,7 @@ static NTSTATUS map_file_into_view( struct file_view *view, int fd, size_t start
     if (!removable || (flags & MAP_SHARED))
     {
         if (mmap( (char *)view->base + start, size, prot, flags, fd, offset ) != MAP_FAILED)
-            return STATUS_SUCCESS;
+            goto done;
 
         switch (errno)
         {
@@ -2131,7 +2130,7 @@ static NTSTATUS map_file_into_view( struct file_view *view, int fd, size_t start
             break;
         case ENOEXEC:
         case ENODEV:  /* filesystem doesn't support mmap(), fall back to read() */
-            if (flags & MAP_SHARED)
+            if (vprot & VPROT_WRITE)
             {
                 ERR( "shared writable mmap not supported, broken filesystem?\n" );
                 return STATUS_NOT_SUPPORTED;
@@ -2163,6 +2162,9 @@ static NTSTATUS map_file_into_view( struct file_view *view, int fd, size_t start
     }
     /* Now read in the file */
     pread( fd, ptr, size, offset );
+    if (prot != (PROT_READ|PROT_WRITE)) mprotect( ptr, size, prot );  /* Set the right protection */
+done:
+    set_page_vprot( (char *)view->base + start, size, vprot );
     return STATUS_SUCCESS;
 }
 
@@ -3269,7 +3271,6 @@ static unsigned int virtual_map_section( HANDLE handle, PVOID *addr_ptr, ULONG_P
     res = map_file_into_view( view, unix_handle, 0, size, offset.QuadPart, vprot, needs_close );
     if (res == STATUS_SUCCESS)
     {
-        set_vprot( view, view->base, size, vprot );
         SERVER_START_REQ( map_view )
         {
             req->mapping = wine_server_obj_handle( handle );
