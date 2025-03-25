@@ -351,12 +351,39 @@ static WORD get_alt_machine( WORD machine )
 static void set_dll_path(void)
 {
     char *p, *path = getenv( "WINEDLLPATH" );
-    int i, count = 0;
+    const char *dxmt_dll_dir = getenv( "DXMT_PATH" );
+    const char *d3dmetal_dll_dir = getenv( "D3DMETAL_PATH" );
+    const char *dxvk_dll_dir = getenv( "DXVK_PATH" );
+    const char *renderer_mode = getenv( "RENDERER_MODE" );
+    const char *renderer_path = NULL;
+    int i, count = 0, renderer = 0;
+
+    // 0 - WineD3D, 1 - DXMT, 2 - D3DMetal, 3 - DXVK
+    if (renderer_mode)
+        renderer = atoi( renderer_mode );
+    if (dxmt_dll_dir && renderer == 1)
+        renderer_path = dxmt_dll_dir;
+    if (d3dmetal_dll_dir && renderer == 2)
+        renderer_path = d3dmetal_dll_dir;
+    if (dxvk_dll_dir && renderer == 3)
+        renderer_path = dxvk_dll_dir;
+
+/*    if (main_argc > 1 && (
+           strstr(main_argv[1], "EACefSubProcess.exe")
+        ))
+    {
+        if (d3dmetal_dll_dir)
+            renderer_path = d3dmetal_dll_dir;
+    }*/
 
     if (path) for (p = path, count = 1; *p; p++) if (*p == ':') count++;
 
+    if (renderer_path) count++;
+
     dll_paths = malloc( (count + 2) * sizeof(*dll_paths) );
     count = 0;
+
+    if (renderer_path) dll_paths[count++] = strdup( renderer_path );
 
     if (!build_dir) dll_paths[count++] = dll_dir;
 
