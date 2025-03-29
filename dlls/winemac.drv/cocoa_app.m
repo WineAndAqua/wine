@@ -298,6 +298,29 @@ static NSString* WineLocalizedString(unsigned int stringID)
             NSString* title;
             NSMenuItem* item;
 
+            /* CW HACK 24141: Prevent dock icon creation for certain apps. */
+            {
+                static NSArray *blacklistedProcesses;
+                static dispatch_once_t onceToken;
+                NSString *exeName;
+
+                dispatch_once(&onceToken, ^{
+                    blacklistedProcesses = [@[
+                        @"GOG Galaxy Notifications Renderer.exe",  /* Hack 24141 */
+                    ] retain];
+                });
+
+                exeName = [NSRunningApplication currentApplication].executableURL.lastPathComponent;
+                if ([blacklistedProcesses containsObject:exeName])
+                {
+                    /* Try to honor the activation request regardless. */
+                    if (activateIfTransformed)
+                        [self tryToActivateIgnoringOtherApps:YES];
+
+                    return;
+                }
+            }
+
             [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
 
             if (activateIfTransformed)
