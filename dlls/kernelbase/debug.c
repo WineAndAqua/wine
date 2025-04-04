@@ -1710,12 +1710,14 @@ BOOL WINAPI DECLSPEC_HOTPATCH GetProcessMemoryInfo( HANDLE process, PROCESS_MEMO
     pmc->cb = sizeof(PROCESS_MEMORY_COUNTERS);
     pmc->PageFaultCount = vmc.PageFaultCount;
     pmc->PeakWorkingSetSize = vmc.PeakWorkingSetSize;
-    pmc->WorkingSetSize = vmc.WorkingSetSize;
+    // W/A: set to non-zero value to meet FLiNG trainer expectations
+    pmc->WorkingSetSize = vmc.WorkingSetSize > 0 ? vmc.WorkingSetSize : 40*1024*1024;
     pmc->QuotaPeakPagedPoolUsage = vmc.QuotaPeakPagedPoolUsage;
     pmc->QuotaPagedPoolUsage = vmc.QuotaPagedPoolUsage;
     pmc->QuotaPeakNonPagedPoolUsage = vmc.QuotaPeakNonPagedPoolUsage;
     pmc->QuotaNonPagedPoolUsage = vmc.QuotaNonPagedPoolUsage;
-    pmc->PagefileUsage = vmc.PagefileUsage;
+    // W/A: set to above 32MB value to meet FLiNG trainer expectations
+    pmc->PagefileUsage = vmc.PagefileUsage > 0 ? vmc.PagefileUsage : 40*1024*1024;
     pmc->PeakPagefileUsage = vmc.PeakPagefileUsage;
     return TRUE;
 }
