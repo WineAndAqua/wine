@@ -7820,6 +7820,16 @@ UINT ACTION_PerformAction(MSIPACKAGE *package, const WCHAR *action)
 
     TRACE("Performing action (%s)\n", debugstr_w(action));
 
+    /* Hack: Skip CreateAntiTamperCatcache in PsPcSdkRuntimeInstaller, it trigger crash. */
+    {
+        static const WCHAR skip_action[] = L"CreateAntiTamperCatcache";
+        if (!wcsicmp(action, skip_action))
+        {
+            FIXME("HACK: Skipping CreateAntiTamperCatcache action.\n");
+            return ERROR_SUCCESS;
+        }
+    }
+
     package->action_progress_increment = 0;
     rc = ACTION_HandleStandardAction(package, action);
 
