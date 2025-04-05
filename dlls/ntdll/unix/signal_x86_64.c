@@ -2011,6 +2011,36 @@ static inline BOOL handle_cet_nop( ucontext_t *sigcontext, CONTEXT *context )
     }
     return FALSE;
 }
+
+/***********************************************************************
+ *           emulate_xgetbv
+ *
+ * Check if the fault location is an Intel XGETBV instruction for xcr0 and
+ * emulate it if so. Actual Intel hardware supports this instruction, so this
+ * will only take effect under Rosetta.
+ * CW HACK 23427
+ */
+static inline BOOL emulate_xgetbv( ucontext_t *sigcontext, CONTEXT *context )
+{
+    BYTE instr[3];
+    unsigned int len = virtual_uninterrupted_read_memory( (BYTE *)context->Rip, instr, sizeof(instr) );
+
+    /* Prefixed xgetbv is illegal, so no need to check. */
+    if (len < 3 || instr[0] != 0x0f || instr[1] != 0x01 || instr[2] != 0xd0 ||
+        (RCX_sig(sigcontext) & 0xffffffff) != 0 /* only handling xcr0 (ecx==0) */)
+    {
+        return FALSE;
+    }
+
+    RDX_sig(sigcontext) = 0;
+    /* Arguably we should only claim AVX support if ROSETTA_ADVERTISE_AVX is
+       set, but presumably apps will also check cpuid. */
+    RAX_sig(sigcontext) = 0xe7;  /* fpu/mmx, sse, avx, full avx-512 */
+
+    RIP_sig(sigcontext) += 3;
+    TRACE_(seh)( "emulated an XGETBV instruction\n" );
+    return TRUE;
+}
 #endif
 
 /***********************************************************************
@@ -2494,6 +2524,8 @@ static void segv_handler( int signal, siginfo_t *siginfo, void *sigcontext )
 #ifdef __APPLE__
         /* CW HACK 20186 */
         if (handle_cet_nop( ucontext, &context.c )) return;
+        /* CW HACK 23427 */
+        if (emulate_xgetbv( ucontext, &context.c )) return;
 #endif
         rec.ExceptionCode = EXCEPTION_ILLEGAL_INSTRUCTION;
         break;
