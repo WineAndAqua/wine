@@ -1457,7 +1457,7 @@ LONG_PTR WINAPI NtUserSetWindowLongPtr( HWND hwnd, INT offset, LONG_PTR newval, 
     return set_window_long( hwnd, offset, sizeof(LONG_PTR), newval, ansi );
 }
 
-BOOL set_window_pixel_format( HWND hwnd, int format, BOOL internal )
+BOOL win32u_set_window_pixel_format( HWND hwnd, int format, BOOL internal )
 {
     WND *win = get_win_ptr( hwnd );
 
@@ -1476,7 +1476,7 @@ BOOL set_window_pixel_format( HWND hwnd, int format, BOOL internal )
     return TRUE;
 }
 
-int get_window_pixel_format( HWND hwnd )
+int win32u_get_window_pixel_format( HWND hwnd )
 {
     WND *win = get_win_ptr( hwnd );
     int ret;
