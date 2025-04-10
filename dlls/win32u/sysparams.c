@@ -1229,15 +1229,15 @@ static BOOL write_gpu_to_registry( const struct gpu *gpu, const struct pci_id *p
         break;
     /* AMD */
     case 0x1002:
-        strcpy( buffer, "31.0.14051.5006" );
+        strcpy( buffer, "31.0.19051.9999" );
         break;
     /* Nvidia */
     case 0x10de:
-        strcpy( buffer, "31.0.15.3625" );
+        strcpy( buffer, "31.0.19.9999" );
         break;
     /* Default value for any other vendor. */
     default:
-        strcpy( buffer, "31.0.10.1000" );
+        strcpy( buffer, "31.0.19.9999" );
         break;
     }
     set_reg_ascii_value( hkey, "DriverVersion", buffer );
