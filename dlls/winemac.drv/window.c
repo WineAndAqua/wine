@@ -192,6 +192,7 @@ static struct macdrv_win_data *alloc_win_data(HWND hwnd)
  *
  * Lock and return the data structure associated with a window.
  */
+__attribute__((visibility("default")))
 struct macdrv_win_data *get_win_data(HWND hwnd)
 {
     struct macdrv_win_data *data;
@@ -210,6 +211,7 @@ struct macdrv_win_data *get_win_data(HWND hwnd)
  *
  * Release the data returned by get_win_data.
  */
+__attribute__((visibility("default")))
 void release_win_data(struct macdrv_win_data *data)
 {
     if (data) pthread_mutex_unlock(&win_data_mutex);
@@ -237,6 +239,7 @@ macdrv_window macdrv_get_cocoa_window(HWND hwnd, BOOL require_on_screen)
  *
  * Return the Cocoa view associated with a window
  */
+__attribute__((visibility("default")))
 macdrv_view macdrv_get_cocoa_view(HWND hwnd)
 {
     struct macdrv_win_data *data = get_win_data(hwnd);
@@ -252,6 +255,7 @@ macdrv_view macdrv_get_cocoa_view(HWND hwnd)
  *
  * Return the Cocoa view associated with a window's client area
  */
+__attribute__((visibility("default")))
 macdrv_view macdrv_get_client_cocoa_view(HWND hwnd)
 {
     struct macdrv_win_data *data = get_win_data(hwnd);
