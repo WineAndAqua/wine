@@ -3939,6 +3939,7 @@ void macdrv_remove_view_opengl_context(macdrv_view v, macdrv_opengl_context c)
 }
 }
 
+__attribute__((visibility("default")))
 macdrv_metal_device macdrv_create_metal_device(void)
 {
 @autoreleasepool
@@ -3947,6 +3948,7 @@ macdrv_metal_device macdrv_create_metal_device(void)
 }
 }
 
+__attribute__((visibility("default")))
 void macdrv_release_metal_device(macdrv_metal_device d)
 {
 @autoreleasepool
@@ -3955,6 +3957,7 @@ void macdrv_release_metal_device(macdrv_metal_device d)
 }
 }
 
+__attribute__((visibility("default")))
 macdrv_metal_view macdrv_view_create_metal_view(macdrv_view v, macdrv_metal_device d)
 {
     id<MTLDevice> device = (id<MTLDevice>)d;
@@ -3968,6 +3971,7 @@ macdrv_metal_view macdrv_view_create_metal_view(macdrv_view v, macdrv_metal_devi
     return (macdrv_metal_view)metalView;
 }
 
+__attribute__((visibility("default")))
 macdrv_metal_layer macdrv_view_get_metal_layer(macdrv_metal_view v)
 {
     WineMetalView* view = (WineMetalView*)v;
@@ -3980,6 +3984,7 @@ macdrv_metal_layer macdrv_view_get_metal_layer(macdrv_metal_view v)
     return (macdrv_metal_layer)layer;
 }
 
+__attribute__((visibility("default")))
 void macdrv_view_release_metal_view(macdrv_metal_view v)
 {
     WineMetalView* view = (WineMetalView*)v;
