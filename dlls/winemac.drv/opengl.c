@@ -1106,8 +1106,9 @@ static CFComparisonResult pixel_format_comparator(const void *val1, const void *
 }
 
 
-static UINT macdrv_init_pixel_formats(UINT *onscreen_count)
+static BOOL init_pixel_formats(void)
 {
+    BOOL ret = FALSE;
     CGLRendererInfoObj renderer_info;
     GLint rendererCount;
     CGLError err;
@@ -1122,7 +1123,7 @@ static UINT macdrv_init_pixel_formats(UINT *onscreen_count)
     if (err)
     {
         WARN("CGLQueryRendererInfo failed (%d) %s\n", err, CGLErrorString(err));
-        return 0;
+        return FALSE;
     }
 
     pixel_format_set = CFSetCreateMutable(NULL, 0, &kCFTypeSetCallBacks);
@@ -1130,7 +1131,7 @@ static UINT macdrv_init_pixel_formats(UINT *onscreen_count)
     {
         WARN("CFSetCreateMutable failed\n");
         CGLDestroyRendererInfo(renderer_info);
-        return 0;
+        return FALSE;
     }
 
     pixel_format_array = CFArrayCreateMutable(NULL, 0, &kCFTypeArrayCallBacks);
@@ -1139,7 +1140,7 @@ static UINT macdrv_init_pixel_formats(UINT *onscreen_count)
         WARN("CFArrayCreateMutable failed\n");
         CFRelease(pixel_format_set);
         CGLDestroyRendererInfo(renderer_info);
-        return 0;
+        return FALSE;
     }
 
     for (i = 0; i < rendererCount; i++)
@@ -1179,20 +1180,16 @@ static UINT macdrv_init_pixel_formats(UINT *onscreen_count)
 
             nb_formats = range.length;
             TRACE("Total number of unique pixel formats: %d\n", nb_formats);
+            ret = TRUE;
         }
         else
-        {
             WARN("failed to allocate pixel format list\n");
-            nb_formats = 0;
-        }
     }
     else
         WARN("got no pixel formats\n");
 
     CFRelease(pixel_format_array);
-
-    *onscreen_count = nb_displayable_formats;
-    return nb_formats;
+    return ret;
 }
 
 
@@ -3501,6 +3498,9 @@ UINT macdrv_OpenGLInit(UINT version, struct opengl_funcs **funcs, const struct o
     if (gluCheckExtension((GLubyte*)"GL_APPLE_flush_render", (GLubyte*)gl_info.glExtensions))
         pglFlushRenderAPPLE = dlsym(opengl_handle, "glFlushRenderAPPLE");
 
+    if (!init_pixel_formats())
+        goto failed;
+
     *funcs = &opengl_funcs;
     *driver_funcs = &macdrv_driver_funcs;
     return STATUS_SUCCESS;
@@ -3535,12 +3535,9 @@ void sync_gl_view(struct macdrv_win_data* data, const struct window_rects *old_r
 }
 
 
-static BOOL macdrv_describe_pixel_format(int format, struct wgl_pixel_format *descr)
+static void describe_pixel_format(const pixel_format *pf, struct wgl_pixel_format *descr)
 {
-    const pixel_format *pf = pixel_formats + format - 1;
     const struct color_mode *mode;
-
-    if (format <= 0 || format > nb_formats) return FALSE;
 
     memset(descr, 0, sizeof(*descr));
     descr->pfd.nSize        = sizeof(*descr);
@@ -3621,8 +3618,6 @@ static BOOL macdrv_describe_pixel_format(int format, struct wgl_pixel_format *de
     descr->max_pbuffer_width = gl_info.max_viewport_dims[0];
     descr->max_pbuffer_height = gl_info.max_viewport_dims[1];
     descr->max_pbuffer_pixels = gl_info.max_viewport_dims[0] * gl_info.max_viewport_dims[1];
-
-    return TRUE;
 }
 
 /***********************************************************************
@@ -3826,10 +3821,26 @@ static BOOL macdrv_wglSwapBuffers(HDC hdc)
     return TRUE;
 }
 
+/**********************************************************************
+ *              macdrv_get_pixel_formats
+ */
+static void macdrv_get_pixel_formats(struct wgl_pixel_format *formats,
+                                     UINT max_formats, UINT *num_formats,
+                                     UINT *num_onscreen_formats)
+{
+    UINT i;
+
+    if (formats)
+    {
+        for (i = 0; i < min(max_formats, nb_formats); ++i)
+            describe_pixel_format(&pixel_formats[i], &formats[i]);
+    }
+    *num_formats = nb_formats;
+    *num_onscreen_formats = nb_displayable_formats;
+}
+
 static const struct opengl_driver_funcs macdrv_driver_funcs =
 {
-    .p_init_pixel_formats = macdrv_init_pixel_formats,
-    .p_describe_pixel_format = macdrv_describe_pixel_format,
     .p_init_wgl_extensions = macdrv_init_wgl_extensions,
     .p_set_pixel_format = macdrv_set_pixel_format,
 };
@@ -3843,4 +3854,5 @@ static struct opengl_funcs opengl_funcs =
     .p_wglMakeCurrent = macdrv_wglMakeCurrent,
     .p_wglShareLists = macdrv_wglShareLists,
     .p_wglSwapBuffers = macdrv_wglSwapBuffers,
+    .p_get_pixel_formats = macdrv_get_pixel_formats,
 };
