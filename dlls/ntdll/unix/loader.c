@@ -532,7 +532,9 @@ static NTSTATUS loader_exec( char **argv, WORD machine )
 
     putenv( noexec );
 
+#ifdef __i386__
     if (((argv[1] = get_alternate_wineloader( machine )))) preloader_exec( argv );
+#endif
 
     argv[1] = strdup( wineloader );
     preloader_exec( argv );
