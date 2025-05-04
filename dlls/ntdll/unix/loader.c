@@ -508,6 +508,7 @@ char *get_alternate_wineloader( WORD machine )
 
 static void preloader_exec( char **argv )
 {
+    char *path;
 #ifdef HAVE_WINE_PRELOADER
     asprintf( &argv[0], "%s-preloader", argv[1] );
 #ifdef __APPLE__
@@ -522,7 +523,12 @@ static void preloader_exec( char **argv )
     execv( argv[0], argv );
     free( argv[0] );
 #endif
-    execv( argv[1], argv + 1 );
+    path = getenv( "ROSETTA_X87_PATH" );
+    if (path) {
+        argv[0] = strdup( path );
+        execv( argv[0], argv );
+    } else
+        execv( argv[1], argv + 1 );
 }
 
 /* exec the appropriate wine loader for the specified machine */
@@ -532,7 +538,9 @@ static NTSTATUS loader_exec( char **argv, WORD machine )
 
     putenv( noexec );
 
+#ifdef __i386__
     if (((argv[1] = get_alternate_wineloader( machine )))) preloader_exec( argv );
+#endif
 
     argv[1] = strdup( wineloader );
     preloader_exec( argv );
