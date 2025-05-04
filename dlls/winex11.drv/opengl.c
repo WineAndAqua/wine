@@ -1852,16 +1852,14 @@ static BOOL x11drv_context_create( HDC hdc, int format, void *share_private, con
     return TRUE;
 }
 
-static BOOL x11drv_pbuffer_create( HDC hdc, int format, BOOL largest, GLenum texture_format, GLenum texture_target,
-                                   GLint max_level, GLsizei *width, GLsizei *height, void **private )
+static BOOL x11drv_pbuffer_create( HDC hdc, int format, BOOL largest, int *width, int *height, void **private )
 {
     const struct glx_pixel_format *fmt;
     int glx_attribs[7], count = 0;
     struct gl_drawable *surface;
     RECT rect;
 
-    TRACE( "hdc %p, format %d, largest %u, texture_format %#x, texture_target %#x, max_level %#x, width %d, height %d, private %p\n",
-           hdc, format, largest, texture_format, texture_target, max_level, *width, *height, private );
+    TRACE( "hdc %p, format %d, largest %u, width %d, height %d, private %p\n", hdc, format, largest, *width, *height, private );
 
     /* Convert the WGL pixelformat to a GLX format, if it fails then the format is invalid */
     if (!(fmt = get_pixel_format( gdi_display, format, TRUE /* Offscreen */ )))
@@ -1918,18 +1916,6 @@ static BOOL x11drv_pbuffer_destroy( HDC hdc, void *private )
     release_gl_drawable( surface );
 
     return GL_TRUE;
-}
-
-static BOOL x11drv_pbuffer_updated( HDC hdc, void *private, GLenum cube_face, GLint mipmap_level )
-{
-    TRACE( "hdc %p, private %p, cube_face %#x, mipmap_level %d\n", hdc, private, cube_face, mipmap_level );
-    return GL_TRUE;
-}
-
-static UINT x11drv_pbuffer_bind( HDC hdc, void *private, GLenum buffer )
-{
-    TRACE( "hdc %p, private %p, buffer %#x\n", hdc, private, buffer );
-    return -1; /* use default implementation */
 }
 
 /**
@@ -2214,8 +2200,6 @@ static const struct opengl_driver_funcs x11drv_driver_funcs =
     .p_context_make_current = x11drv_context_make_current,
     .p_pbuffer_create = x11drv_pbuffer_create,
     .p_pbuffer_destroy = x11drv_pbuffer_destroy,
-    .p_pbuffer_updated = x11drv_pbuffer_updated,
-    .p_pbuffer_bind = x11drv_pbuffer_bind,
 };
 
 static struct opengl_funcs opengl_funcs =
