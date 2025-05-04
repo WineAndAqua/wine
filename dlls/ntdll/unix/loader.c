@@ -510,7 +510,9 @@ static void preloader_exec( char **argv )
 /* exec the appropriate wine loader for the specified machine */
 static NTSTATUS loader_exec( char **argv, WORD machine )
 {
+#ifdef __i386__
     if (((argv[1] = get_alternate_wineloader( machine )))) preloader_exec( argv );
+#endif
 
     argv[1] = strdup( wineloader );
     preloader_exec( argv );
