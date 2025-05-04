@@ -3186,9 +3186,29 @@ static BOOL macdrv_context_share(void *src_private, void *dst_private)
     return TRUE;
 }
 
-static void *macdrv_get_proc_address(const char *name)
+/***********************************************************************
+ *              macdrv_wglGetProcAddress
+ */
+static PROC macdrv_wglGetProcAddress(const char *proc)
 {
-    return dlsym(opengl_handle, name);
+    void *ret;
+
+    if (!strncmp(proc, "wgl", 3)) return NULL;
+    ret = dlsym(opengl_handle, proc);
+    if (ret)
+    {
+        if (TRACE_ON(wgl))
+        {
+            Dl_info info;
+            if (dladdr(ret, &info))
+                TRACE("%s -> %s from %s\n", proc, info.dli_sname, info.dli_fname);
+            else
+                TRACE("%s -> %p (no library info)\n", proc, ret);
+        }
+    }
+    else
+        WARN("failed to find proc %s\n", debugstr_a(proc));
+    return ret;
 }
 
 /**********************************************************************
@@ -3260,7 +3280,6 @@ static BOOL macdrv_wglSwapBuffers(HDC hdc)
 
 static const struct opengl_driver_funcs macdrv_driver_funcs =
 {
-    .p_get_proc_address = macdrv_get_proc_address,
     .p_init_pixel_formats = macdrv_init_pixel_formats,
     .p_describe_pixel_format = macdrv_describe_pixel_format,
     .p_init_wgl_extensions = macdrv_init_wgl_extensions,
@@ -3278,5 +3297,6 @@ static const struct opengl_driver_funcs macdrv_driver_funcs =
 
 static struct opengl_funcs opengl_funcs =
 {
+    .p_wglGetProcAddress = macdrv_wglGetProcAddress,
     .p_wglSwapBuffers = macdrv_wglSwapBuffers,
 };
