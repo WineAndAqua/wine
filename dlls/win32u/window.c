@@ -1476,7 +1476,7 @@ BOOL set_window_pixel_format( HWND hwnd, int format, BOOL internal )
     return TRUE;
 }
 
-int get_window_pixel_format( HWND hwnd, BOOL internal )
+int get_window_pixel_format( HWND hwnd )
 {
     WND *win = get_win_ptr( hwnd );
     int ret;
@@ -1487,7 +1487,7 @@ int get_window_pixel_format( HWND hwnd, BOOL internal )
         return 0;
     }
 
-    ret = internal && win->internal_pixel_format ? win->internal_pixel_format : win->pixel_format;
+    ret = win->pixel_format;
     release_win_ptr( win );
 
     return ret;
