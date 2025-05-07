@@ -1269,6 +1269,12 @@ static NTSTATUS create_logical_proc_info(void)
     if (sysctlbyname("hw.physicalcpu", &cores_no, &size, NULL, 0))
         cores_no = lcpu_no;
 
+    /* CW HACK 24711: allow restricting the number of processors through an environment variable.
+     * Don't report more packages or physical cores than logical cores.
+     */
+    pkgs_no = MIN(pkgs_no, lcpu_no);
+    cores_no = MIN(cores_no, lcpu_no);
+
     TRACE("%u logical CPUs from %u physical cores across %u packages\n",
             lcpu_no, cores_no, pkgs_no);
 
@@ -1331,6 +1337,14 @@ static NTSTATUS create_logical_proc_info(void)
         cache_sharing[4] = cache_sharing[3];
         cache_sharing[3] = cache_sharing[2];
         cache_sharing[2] = cache_sharing[1];
+
+        /* CW HACK 24711: allow restricting the number of processors through an environment variable
+         * The number of processors (logical cores) needs to be divisible by the number of logical
+         * cores sharing a cache.
+         */
+        if (cache_sharing[4] && (lcpu_no % cache_sharing[4])) cache_sharing[4] = 1;
+        if (cache_sharing[3] && (lcpu_no % cache_sharing[3])) cache_sharing[3] = 1;
+        if (cache_sharing[2] && (lcpu_no % cache_sharing[2])) cache_sharing[2] = 1;
     }
 
     for(p = 0; p < pkgs_no; ++p)
@@ -1475,6 +1489,23 @@ void init_cpu_info(void)
     num = 1;
     FIXME("Detecting the number of processors is not supported.\n");
 #endif
+
+#if defined(__APPLE__)
+    /* CW HACK 24711: allow restricting the number of processors through an environment variable */
+    {
+        const char *ncpu = getenv("WINENCPU");
+        if (ncpu)
+        {
+            long num_override = atoi(ncpu);
+            if (num_override > 0 && num_override < num)
+            {
+                num = num_override;
+                WARN("Restricting number of processors to %ld.\n", num);
+            }
+        }
+    }
+#endif
+
     peb->NumberOfProcessors = num;
     init_cpu_model();
 }
