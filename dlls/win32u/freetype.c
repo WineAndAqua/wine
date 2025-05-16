@@ -1388,9 +1388,13 @@ done:
 
 static void load_mac_font_callback(const void *value, void *context)
 {
-    CFStringRef pathStr = value;
+    CFURLRef url = value;
+    CFStringRef pathStr;
     CFIndex len;
     char* path;
+
+    pathStr = CFURLCopyFileSystemPath(url, kCFURLPOSIXPathStyle);
+    if (!pathStr) return;
 
     len = CFStringGetMaximumSizeOfFileSystemRepresentation(pathStr);
     path = malloc( len );
@@ -1400,6 +1404,7 @@ static void load_mac_font_callback(const void *value, void *context)
         AddFontToList(NULL, path, NULL, 0, ADDFONT_EXTERNAL_FONT);
     }
     free( path );
+    CFRelease(pathStr);
 }
 
 static void load_mac_fonts(void)
@@ -1409,7 +1414,7 @@ static void load_mac_fonts(void)
     CFDictionaryRef options;
     CTFontCollectionRef col;
     CFArrayRef descs;
-    CFMutableSetRef paths;
+    CFMutableSetRef urls;
     CFIndex i;
 
     removeDupesKey = kCTFontCollectionRemoveDuplicatesOption;
@@ -1432,8 +1437,8 @@ static void load_mac_fonts(void)
         return;
     }
 
-    paths = CFSetCreateMutable(NULL, 0, &kCFTypeSetCallBacks);
-    if (!paths)
+    urls = CFSetCreateMutable(NULL, 0, &kCFTypeSetCallBacks);
+    if (!urls)
     {
         WARN("CFSetCreateMutable failed\n");
         CFRelease(descs);
@@ -1445,7 +1450,6 @@ static void load_mac_fonts(void)
         CTFontDescriptorRef desc;
         CFURLRef url;
         CFStringRef ext;
-        CFStringRef path;
 
         desc = CFArrayGetValueAtIndex(descs, i);
         url = CTFontDescriptorCopyAttribute(desc, kCTFontURLAttribute);
@@ -1464,18 +1468,14 @@ static void load_mac_fonts(void)
             }
         }
 
-        path = CFURLCopyFileSystemPath(url, kCFURLPOSIXPathStyle);
+        CFSetAddValue(urls, url);
         CFRelease(url);
-        if (!path) continue;
-
-        CFSetAddValue(paths, path);
-        CFRelease(path);
     }
 
     CFRelease(descs);
 
-    CFSetApplyFunction(paths, load_mac_font_callback, NULL);
-    CFRelease(paths);
+    CFSetApplyFunction(urls, load_mac_font_callback, NULL);
+    CFRelease(urls);
 }
 
 #endif
