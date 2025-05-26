@@ -3186,6 +3186,14 @@ static BOOL macdrv_context_share(void *src_private, void *dst_private)
     return TRUE;
 }
 
+/**********************************************************************
+ *              macdrv_wglSetPixelFormat
+ */
+static BOOL macdrv_wglSetPixelFormat(HDC hdc, int fmt, const PIXELFORMATDESCRIPTOR *descr)
+{
+    return macdrv_set_pixel_format(hdc, 0, fmt, FALSE);
+}
+
 /***********************************************************************
  *              macdrv_wglGetProcAddress
  */
@@ -3283,7 +3291,7 @@ static const struct opengl_driver_funcs macdrv_driver_funcs =
     .p_init_pixel_formats = macdrv_init_pixel_formats,
     .p_describe_pixel_format = macdrv_describe_pixel_format,
     .p_init_wgl_extensions = macdrv_init_wgl_extensions,
-    .p_set_pixel_format = macdrv_set_pixel_format,
+    //.p_set_pixel_format = macdrv_set_pixel_format,
     .p_pbuffer_create = macdrv_pbuffer_create,
     .p_pbuffer_destroy = macdrv_pbuffer_destroy,
     .p_pbuffer_updated = macdrv_pbuffer_updated,
@@ -3299,4 +3307,5 @@ static struct opengl_funcs opengl_funcs =
 {
     .p_wglGetProcAddress = macdrv_wglGetProcAddress,
     .p_wglSwapBuffers = macdrv_wglSwapBuffers,
+    .p_wglSetPixelFormat = macdrv_wglSetPixelFormat,
 };
