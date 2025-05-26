@@ -3665,6 +3665,14 @@ static BOOL macdrv_wglMakeCurrent(HDC hdc, struct wgl_context *context)
     return macdrv_wglMakeContextCurrentARB(hdc, hdc, context);
 }
 
+/**********************************************************************
+ *              macdrv_wglSetPixelFormat
+ */
+static BOOL macdrv_wglSetPixelFormat(HDC hdc, int fmt, const PIXELFORMATDESCRIPTOR *descr)
+{
+    return macdrv_set_pixel_format(hdc, 0, fmt, FALSE);
+}
+
 /***********************************************************************
  *              macdrv_wglShareLists
  */
@@ -3806,7 +3814,7 @@ static void macdrv_get_pixel_formats(struct wgl_pixel_format *formats,
 static const struct opengl_driver_funcs macdrv_driver_funcs =
 {
     .p_init_wgl_extensions = macdrv_init_wgl_extensions,
-    .p_set_pixel_format = macdrv_set_pixel_format,
+    //.p_set_pixel_format = macdrv_set_pixel_format,
 };
 
 static struct opengl_funcs opengl_funcs =
@@ -3816,6 +3824,7 @@ static struct opengl_funcs opengl_funcs =
     .p_wglDeleteContext = macdrv_wglDeleteContext,
     .p_wglGetProcAddress = macdrv_wglGetProcAddress,
     .p_wglMakeCurrent = macdrv_wglMakeCurrent,
+    .p_wglSetPixelFormat = macdrv_wglSetPixelFormat,
     .p_wglShareLists = macdrv_wglShareLists,
     .p_wglSwapBuffers = macdrv_wglSwapBuffers,
     .p_get_pixel_formats = macdrv_get_pixel_formats,
