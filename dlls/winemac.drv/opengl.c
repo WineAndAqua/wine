@@ -3100,7 +3100,7 @@ static const struct opengl_driver_funcs macdrv_driver_funcs =
     .p_init_pixel_formats = macdrv_init_pixel_formats,
     .p_describe_pixel_format = macdrv_describe_pixel_format,
     .p_init_wgl_extensions = macdrv_init_wgl_extensions,
-    .p_set_pixel_format = macdrv_set_pixel_format,
+    //.p_set_pixel_format = macdrv_set_pixel_format,
     .p_swap_buffers = macdrv_swap_buffers,
     .p_context_create = macdrv_context_create,
     .p_context_destroy = macdrv_context_destroy,
@@ -3112,4 +3112,17 @@ static const struct opengl_driver_funcs macdrv_driver_funcs =
     .p_pbuffer_destroy = macdrv_pbuffer_destroy,
     .p_pbuffer_updated = macdrv_pbuffer_updated,
     .p_pbuffer_bind = macdrv_pbuffer_bind,
+};
+
+/**********************************************************************
+ *              macdrv_wglSetPixelFormat
+ */
+static BOOL macdrv_wglSetPixelFormat(HDC hdc, int fmt, const PIXELFORMATDESCRIPTOR *descr)
+{
+    return macdrv_set_pixel_format(hdc, 0, fmt, FALSE);
+}
+
+static struct opengl_funcs opengl_funcs =
+{
+    .p_wglSetPixelFormat = macdrv_wglSetPixelFormat,
 };
