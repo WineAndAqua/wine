@@ -14385,16 +14385,6 @@ CPPFLAGS=$ac_save_CPPFLAGS
 fi
 
 fi
-if test -z "$ac_cv_lib_soname_EGL"
-then :
-  case "x$with_opengl" in
-  x)   as_fn_append wine_notices "|EGL ${notice_platform}development files not found" ;;
-  xno) ;;
-  *)   as_fn_error $? "EGL ${notice_platform}development files not found
-This is an error since --with-opengl was requested." "$LINENO" 5 ;;
-esac
-
-fi
 
 
 ac_ext=c
