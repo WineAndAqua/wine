@@ -1238,8 +1238,6 @@ then
     WINE_PACKAGE_FLAGS(EGL,[egl],[-lEGL],,,
         [WINE_CHECK_SONAME(EGL,eglGetProcAddress,,,[$EGL_LIBS])])
 fi
-WINE_NOTICE_WITH(opengl, [test -z "$ac_cv_lib_soname_EGL"],
-    [EGL ${notice_platform}development files not found])
 
 dnl **** Check for X11 ****
 
