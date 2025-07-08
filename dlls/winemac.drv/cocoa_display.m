@@ -164,6 +164,21 @@ static int macdrv_get_gpu_info_from_entry(struct macdrv_gpu* gpu, io_registry_en
     get_entry_property_uint32(gpu_entry, CFSTR("revision-id"), &gpu->revision_id);
     get_entry_property_string(gpu_entry, CFSTR("model"), gpu->name, sizeof(gpu->name));
 
+    const char *vendor_id = getenv("GPU_VENDOR");
+    const char *device_id = getenv("GPU_DEVICE");
+    const char *name = getenv("GPU_NAME");
+    if (vendor_id && strtoul(vendor_id, NULL, 16) > 0)
+        gpu->vendor_id = strtoul(vendor_id, NULL, 16);
+    if (device_id && strtoul(device_id, NULL, 16) > 0)
+        gpu->device_id = strtoul(device_id, NULL, 16);
+    if (name) {
+        int i;
+        for (i = 0; i < (sizeof(gpu->name) - 1) && name[i]; i++) {
+            gpu->name[i] = name[i];
+        }
+        gpu->name[i] = '\0';
+    }
+
 done:
     if (gpu_entry != entry)
         IOObjectRelease(gpu_entry);
