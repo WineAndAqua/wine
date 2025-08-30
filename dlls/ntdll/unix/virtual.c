@@ -4624,6 +4624,16 @@ NTSTATUS virtual_handle_fault( struct thread_data *data, EXCEPTION_RECORD *rec, 
         ret = STATUS_SUCCESS;
         goto done;
     }
+
+    /* CW Hack 25719 */
+    if (err == EXCEPTION_EXECUTE_FAULT && (get_unix_prot( vprot ) & PROT_EXEC))
+    {
+        FIXME( "HACK: exec fault on executable page, addr %p\n", addr );
+        mprotect_range( page, page_size, 0, VPROT_EXEC );
+        mprotect_range( page, page_size, VPROT_EXEC, 0 );
+        ret = STATUS_SUCCESS;
+        goto done;
+    }
 #endif
 
     if (!is_inside_signal_stack( data, stack ) && (vprot & VPROT_GUARD))
