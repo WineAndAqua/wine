@@ -6031,8 +6031,8 @@ struct d3dkmt_object_update_request
     struct request_header __header;
     unsigned int        type;
     d3dkmt_handle_t     global;
-    obj_handle_t        handle;
     /* VARARG(runtime,bytes); */
+    char __pad_20[4];
 };
 struct d3dkmt_object_update_reply
 {
@@ -7041,6 +7041,6 @@ union generic_reply
     struct d3dkmt_object_open_name_reply d3dkmt_object_open_name_reply;
 };
 
-#define SERVER_PROTOCOL_VERSION 922
+#define SERVER_PROTOCOL_VERSION 923
 
 #endif /* __WINE_WINE_SERVER_PROTOCOL_H */
