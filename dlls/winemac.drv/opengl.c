@@ -2162,6 +2162,14 @@ static BOOL macdrv_context_create(int format, void *shared, const int *attrib_li
     if ((major == 3 && (minor == 2 || minor == 3)) ||
         (major == 4 && (minor == 0 || minor == 1)))
     {
+        /* CW Hack 24834 */
+        const char *fwd_compat_context = getenv("CX_FWD_COMPAT_GL_CTX");
+        if (fwd_compat_context && fwd_compat_context[0] == '1')
+        {
+            if (!(flags & WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB))
+                flags |= WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB;
+        }
+
         if (!(flags & WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB))
         {
             WARN("OS X only supports forward-compatible 3.2+ contexts\n");
