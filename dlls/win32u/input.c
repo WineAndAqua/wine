@@ -1332,7 +1332,7 @@ HKL WINAPI NtUserActivateKeyboardLayout( HKL layout, UINT flags )
 
     TRACE_(keyboard)( "layout %p, flags %x\n", layout, flags );
 
-    if (flags) FIXME_(keyboard)( "flags %x not supported\n", flags );
+    //if (flags) FIXME_(keyboard)( "flags %x not supported\n", flags );
 
     if (layout == (HKL)HKL_NEXT || layout == (HKL)HKL_PREV)
     {
@@ -1345,7 +1345,7 @@ HKL WINAPI NtUserActivateKeyboardLayout( HKL layout, UINT flags )
         (NtQueryDefaultLocale( TRUE, &locale ) || LOWORD(layout) != locale))
     {
         RtlSetLastWin32Error( ERROR_CALL_NOT_IMPLEMENTED );
-        FIXME_(keyboard)( "Changing user locale is not supported\n" );
+        //FIXME_(keyboard)( "Changing user locale is not supported\n" );
         return 0;
     }
 
