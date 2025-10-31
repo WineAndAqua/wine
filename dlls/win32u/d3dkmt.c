@@ -742,7 +742,7 @@ NTSTATUS WINAPI NtGdiDdDDIQueryAdapterInfo( D3DKMT_QUERYADAPTERINFO *desc )
  */
 NTSTATUS WINAPI NtGdiDdDDIQueryStatistics( D3DKMT_QUERYSTATISTICS *stats )
 {
-    FIXME( "(%p): stub\n", stats );
+    //FIXME( "(%p): stub\n", stats );
     return STATUS_SUCCESS;
 }
 
