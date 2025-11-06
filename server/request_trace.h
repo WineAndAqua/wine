@@ -3387,6 +3387,7 @@ static void dump_get_inproc_sync_fd_reply( const struct get_inproc_sync_fd_reply
 {
     fprintf( stderr, " type=%d", req->type );
     fprintf( stderr, ", access=%08x", req->access );
+    fprintf( stderr, ", shm_idx=%08x", req->shm_idx );
 }
 
 static void dump_get_inproc_alert_fd_request( const struct get_inproc_alert_fd_request *req )
@@ -4535,6 +4536,7 @@ static const struct
     { "NO_IMPERSONATION_TOKEN",      STATUS_NO_IMPERSONATION_TOKEN },
     { "NO_MEMORY",                   STATUS_NO_MEMORY },
     { "NO_MORE_ENTRIES",             STATUS_NO_MORE_ENTRIES },
+    { "NO_MORE_FILES",               STATUS_NO_MORE_FILES },
     { "NO_SUCH_DEVICE",              STATUS_NO_SUCH_DEVICE },
     { "NO_SUCH_FILE",                STATUS_NO_SUCH_FILE },
     { "NO_TOKEN",                    STATUS_NO_TOKEN },

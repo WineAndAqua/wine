@@ -5995,6 +5995,8 @@ struct get_inproc_sync_fd_reply
     struct reply_header __header;
     int           type;
     unsigned int access;
+    unsigned int shm_idx;
+    char __pad_20[4];
 };
 
 
