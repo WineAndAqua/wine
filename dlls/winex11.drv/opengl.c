@@ -473,9 +473,7 @@ static void x11drv_init_egl_platform( struct egl_platform *platform )
 
 static inline EGLConfig egl_config_for_format(int format)
 {
-    assert(format > 0 && format <= 2 * egl->config_count);
-    if (format <= egl->config_count) return egl->configs[format - 1];
-    return egl->configs[format - egl->config_count - 1];
+    return egl->configs[(format - 1) % egl->config_count];
 }
 
 static BOOL x11drv_egl_surface_create( HWND hwnd, int format, struct opengl_drawable **drawable )
