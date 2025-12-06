@@ -1096,7 +1096,6 @@ UINT macdrv_UpdateDisplayDevices(const struct gdi_device_manager *device_manager
                     .rc_work = rect_from_cgrect(monitor->rc_work),
                     .edid_len = monitor->edid_len,
                     .edid = monitor->edid,
-                    .hdr_enabled = monitor->hdr_enabled,
                 };
                 device_manager->add_monitor( &gdi_monitor, param );
 
