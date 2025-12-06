@@ -272,7 +272,6 @@ struct macdrv_adapter
 /* Represent a monitor in EnumDisplayDevices context */
 struct macdrv_monitor
 {
-    CGDirectDisplayID id;
     /* as RcMonitor in MONITORINFO struct after conversion by rect_from_cgrect */
     CGRect rc_monitor;
     /* as RcWork in MONITORINFO struct after conversion by rect_from_cgrect */
