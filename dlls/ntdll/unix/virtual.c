@@ -139,6 +139,7 @@ struct file_view
 #define VPROT_GUARD      0x10
 #define VPROT_COMMITTED  0x20
 #define VPROT_WRITEWATCH 0x40
+#define VPROT_COPIED     0x80
 /* per-mapping protection flags */
 #define VPROT_ARM64EC          0x0100  /* view may contain ARM64EC code */
 #define VPROT_SYSTEM           0x0200  /* system view (underlying mmap not under our control) */
@@ -1338,7 +1339,8 @@ static const char *get_prot_str( BYTE prot )
     buffer[0] = (prot & VPROT_COMMITTED) ? 'c' : '-';
     buffer[1] = (prot & VPROT_GUARD) ? 'g' : ((prot & VPROT_WRITEWATCH) ? 'H' : '-');
     buffer[2] = (prot & VPROT_READ) ? 'r' : '-';
-    buffer[3] = (prot & VPROT_WRITECOPY) ? 'W' : ((prot & VPROT_WRITE) ? 'w' : '-');
+    buffer[3] = (prot & VPROT_WRITECOPY) ? (prot & VPROT_COPIED ? 'w' : 'W')
+        : ((prot & VPROT_WRITE) ? 'w' : '-');
     buffer[4] = (prot & VPROT_EXEC) ? 'x' : '-';
     buffer[5] = 0;
     return buffer;
@@ -1865,7 +1867,11 @@ static NTSTATUS create_view( struct file_view **view_ret, void *base, size_t siz
  */
 static DWORD get_win32_prot( BYTE vprot, unsigned int map_prot )
 {
-    DWORD ret = VIRTUAL_Win32Flags[vprot & 0x0f];
+    DWORD ret;
+
+    if ((vprot & (VPROT_COPIED | VPROT_WRITECOPY)) == (VPROT_COPIED | VPROT_WRITECOPY))
+        vprot = (vprot & ~VPROT_WRITECOPY) | VPROT_WRITE;
+    ret = VIRTUAL_Win32Flags[vprot & 0x0f];
     if (vprot & VPROT_GUARD) ret |= PAGE_GUARD;
     if (map_prot & SEC_NOCACHE) ret |= PAGE_NOCACHE;
     return ret;
