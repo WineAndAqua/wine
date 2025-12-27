@@ -636,4 +636,159 @@ const unixlib_entry_t __wine_unix_call_wow64_funcs[] =
 
 C_ASSERT( ARRAYSIZE(__wine_unix_call_wow64_funcs) == unix_funcs_count );
 
+
+struct macdrv_functions_t
+{
+    void (*macdrv_init_display_devices)(BOOL);
+    struct dxmt_macdrv_win_data* (*get_win_data)(HWND hwnd);
+    void (*release_win_data)(struct dxmt_macdrv_win_data *data);
+    macdrv_window(*macdrv_get_cocoa_window)(HWND hwnd, BOOL require_on_screen);
+    macdrv_metal_device (*macdrv_create_metal_device)(void);
+    void (*macdrv_release_metal_device)(macdrv_metal_device d);
+    macdrv_metal_view (*macdrv_view_create_metal_view)(macdrv_view v, macdrv_metal_device d);
+    macdrv_metal_layer (*macdrv_view_get_metal_layer)(macdrv_metal_view v);
+    void (*macdrv_view_release_metal_view)(macdrv_metal_view v);
+    void (*on_main_thread)(dispatch_block_t b);
+};
+C_ASSERT(sizeof(struct macdrv_functions_t) == 80);
+
+struct dxmt_macdrv_win_data
+{
+    HWND                hwnd;
+    macdrv_window       cocoa_window;
+    macdrv_view         cocoa_view;
+    macdrv_view         client_cocoa_view;
+    RECT                window_rect;            /* USER window rectangle relative to parent */
+    RECT                whole_rect;             /* Mac window rectangle for the whole window relative to parent */
+    RECT                client_rect;            /* client area relative to parent */
+    int                 pixel_format;           /* pixel format for GL */
+    COLORREF            color_key;              /* color key for layered window; CLR_INVALID is not color keyed */
+    HANDLE              drag_event;             /* event to signal that Cocoa-driven window dragging has ended */
+    unsigned int        on_screen : 1;          /* is window ordered in? (minimized or not) */
+    unsigned int        shaped : 1;             /* is window using a custom region shape? */
+    unsigned int        layered : 1;            /* is window layered and with valid attributes? */
+    unsigned int        ulw_layered : 1;        /* has UpdateLayeredWindow() been called for window? */
+    unsigned int        per_pixel_alpha : 1;    /* is window using per-pixel alpha? */
+    unsigned int        minimized : 1;          /* is window minimized? */
+    void *              padding[2];             /* used to be struct window_surface* surface/unminimized_surface */
+};
+
+C_ASSERT(sizeof(struct dxmt_macdrv_win_data) == 120);
+
+static void cf_client_surface_release(CFAllocatorRef allocator, const void *client_surface);
+
+static void my_macdrv_init_display_devices(BOOL p) {}
+
+static struct dxmt_macdrv_win_data *my_get_win_data(HWND hwnd)
+{
+    struct macdrv_win_data *data;
+    struct dxmt_macdrv_win_data *dxmt_data;
+    struct macdrv_client_surface *client_surface;
+    TRACE("get_win_data %p\n", hwnd);
+
+    /* Creating a client surface on each call to get_win_data() means it's no longer idempotent,
+     * but DXMT both call it only when creating a new DXGI swapchain.
+     * It does:
+     * get_win_data() -> create_metal_device() -> create_metal_view() -> get_metal_layer() -> release_win_data()
+     */
+    client_surface = macdrv_client_surface_create(hwnd);
+
+    /* get_win_data() needs to happen after client_surface creation to avoid deadlocks */
+    data = get_win_data(hwnd);
+    if (!data)
+    {
+        client_surface_release((struct client_surface *)client_surface);
+        return NULL;
+    }
+
+    macdrv_set_view_dxmt_client_surface(client_surface->cocoa_view, &client_surface->client);
+
+    if (!data->dxmt_client_surfaces)
+    {
+        static const CFArrayCallBacks callbacks = { .release = cf_client_surface_release };
+        data->dxmt_client_surfaces = CFArrayCreateMutable(NULL, 0, &callbacks);
+    }
+    CFArrayAppendValue(data->dxmt_client_surfaces, client_surface);
+
+    dxmt_data = calloc(1, sizeof(*dxmt_data));
+
+    dxmt_data->client_cocoa_view = client_surface->cocoa_view;
+    dxmt_data->padding[0] = data;
+
+    return dxmt_data;
+}
+
+static void my_release_win_data(struct dxmt_macdrv_win_data *data)
+{
+    TRACE("release_win_data %p\n", data);
+
+    if (!data)
+        return;
+
+    release_win_data(data->padding[0]);
+    free(data);
+}
+
+static macdrv_window my_macdrv_get_cocoa_window(HWND hwnd, BOOL require_on_screen)
+{
+    TRACE("macdrv_get_cocoa_window %p %d\n", hwnd, require_on_screen);
+    return macdrv_get_cocoa_window(hwnd, require_on_screen);
+}
+
+static macdrv_metal_device my_macdrv_create_metal_device(void)
+{
+    TRACE("macdrv_create_metal_device\n");
+    return macdrv_create_metal_device();
+}
+
+static void my_macdrv_release_metal_device(macdrv_metal_device d)
+{
+    TRACE("macdrv_release_metal_device %p\n", d);
+    macdrv_release_metal_device(d);
+}
+
+static macdrv_metal_view my_macdrv_view_create_metal_view(macdrv_view v, macdrv_metal_device d)
+{
+    TRACE("macdrv_view_create_metal_view %p %p\n", v, d);
+    return macdrv_view_create_metal_view(v, d);
+}
+
+static macdrv_metal_layer my_macdrv_view_get_metal_layer(macdrv_metal_view v)
+{
+    TRACE("macdrv_view_get_metal_layer %p\n", v);
+    return macdrv_view_get_metal_layer(v);
+}
+
+static void my_macdrv_view_release_metal_view(macdrv_metal_view v)
+{
+    TRACE("macdrv_view_release_metal_view %p\n", v);
+    return macdrv_view_release_metal_view(v);
+}
+
+DECLSPEC_EXPORT struct macdrv_functions_t macdrv_functions =
+{
+    &my_macdrv_init_display_devices,
+    &my_get_win_data,
+    &my_release_win_data,
+    &my_macdrv_get_cocoa_window,
+    &my_macdrv_create_metal_device,
+    &my_macdrv_release_metal_device,
+    &my_macdrv_view_create_metal_view,
+    &my_macdrv_view_get_metal_layer,
+    &my_macdrv_view_release_metal_view,
+    NULL
+};
+
+void macdrv_client_surface_presented(const macdrv_event *event)
+{
+    TRACE("client_surface %p\n", event->client_surface_presented.client_surface);
+
+    client_surface_present(event->client_surface_presented.client_surface);
+}
+
+static void cf_client_surface_release(CFAllocatorRef allocator, const void *client_surface)
+{
+    client_surface_release((struct client_surface *)client_surface);
+}
+
 #endif /* _WIN64 */
