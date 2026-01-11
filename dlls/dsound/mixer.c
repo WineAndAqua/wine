@@ -323,9 +323,10 @@ static UINT cp_fields_resample(IDirectSoundBufferImpl *dsb, UINT count, LONG64 *
 
     UINT fir_cachesize = (fir_len + dsbfirstep - 2) / dsbfirstep;
     UINT required_input = max_ipos + fir_cachesize;
-    float *intermediate, *itmp;
+    float *intermediate, *output, *itmp;
 
     DWORD len = required_input * channels;
+    len += count * channels;
     len *= sizeof(float);
 
     *freqAccNum = freqAcc_end % dsb->freqAdjustDen;
@@ -342,6 +343,7 @@ static UINT cp_fields_resample(IDirectSoundBufferImpl *dsb, UINT count, LONG64 *
     }
 
     intermediate = dsb->device->cp_buffer;
+    output = intermediate + required_input * channels;
 
     if(dsb->use_committed) {
         committed_samples = (dsb->writelead - dsb->committed_mixpos) / istride;
@@ -382,9 +384,13 @@ static UINT cp_fields_resample(IDirectSoundBufferImpl *dsb, UINT count, LONG64 *
 
             for (j = 0; j < fir_used; j++)
                 sum += (fir[idx + j * dsbfirstep] * (1.0f - rem) + fir[idx + j * dsbfirstep + 1] * rem) * cache[j];
-            dsb->put(dsb, i * ostride, channel, sum * dsb->firgain);
+            output[channel * count + i] = sum * dsb->firgain;
         }
     }
+
+    for(i = 0; i < count; ++i)
+        for (channel = 0; channel < channels; channel++)
+            dsb->put(dsb, i * ostride, channel, output[channel * count + i]);
 
     return max_ipos;
 }
