@@ -362,23 +362,24 @@ static UINT cp_fields_resample(IDirectSoundBufferImpl *dsb, UINT count, LONG64 *
                     dsb->buflen, dsb->sec_mixpos + i * istride, channel);
     }
 
-    for(i = 0; i < count; ++i) {
-        LONG64 ipos_num = freqAcc_start + i * dsb->freqAdjustNum;
-        UINT ipos = ipos_num / dsb->freqAdjustDen;
+    for (channel = 0; channel < channels; channel++) {
+        for(i = 0; i < count; ++i) {
+            LONG64 ipos_num = freqAcc_start + i * dsb->freqAdjustNum;
+            UINT ipos = ipos_num / dsb->freqAdjustDen;
 
-        UINT idx_num = ipos_num % dsb->freqAdjustDen * dsbfirstep;
-        UINT idx = dsbfirstep - 1 - idx_num / dsb->freqAdjustDen;
-        float rem = 1.0f - idx_num % dsb->freqAdjustDen / (float)dsb->freqAdjustDen;
+            UINT idx_num = ipos_num % dsb->freqAdjustDen * dsbfirstep;
+            UINT idx = dsbfirstep - 1 - idx_num / dsb->freqAdjustDen;
+            float rem = 1.0f - idx_num % dsb->freqAdjustDen / (float)dsb->freqAdjustDen;
 
-        int fir_used = (fir_len - 1 - idx + dsbfirstep - 1) / dsbfirstep;
+            int fir_used = (fir_len - 1 - idx + dsbfirstep - 1) / dsbfirstep;
 
-        assert(fir_used <= fir_cachesize);
-        assert(ipos + fir_used <= required_input);
-
-        for (channel = 0; channel < dsb->mix_channels; channel++) {
             int j;
             float sum = 0.0;
             float* cache = &intermediate[channel * required_input + ipos];
+
+            assert(fir_used <= fir_cachesize);
+            assert(ipos + fir_used <= required_input);
+
             for (j = 0; j < fir_used; j++)
                 sum += (fir[idx + j * dsbfirstep] * (1.0f - rem) + fir[idx + j * dsbfirstep + 1] * rem) * cache[j];
             dsb->put(dsb, i * ostride, channel, sum * dsb->firgain);
