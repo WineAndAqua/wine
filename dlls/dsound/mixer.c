@@ -308,6 +308,31 @@ static UINT cp_fields_noresample(IDirectSoundBufferImpl *dsb, UINT count)
     return count;
 }
 
+static void resample(LONG64 freq_adjust_num, LONG64 freq_adjust_den, LONG64 freq_acc_start,
+        UINT dsbfirstep, float firgain, UINT count, float *input, float *output)
+{
+    UINT i;
+
+    for(i = 0; i < count; ++i) {
+        LONG64 ipos_num = freq_acc_start + i * freq_adjust_num;
+        UINT ipos = ipos_num / freq_adjust_den;
+
+        UINT idx_num = ipos_num % freq_adjust_den * dsbfirstep;
+        UINT idx = dsbfirstep - 1 - idx_num / freq_adjust_den;
+        float rem = 1.0f - idx_num % freq_adjust_den / (float)freq_adjust_den;
+
+        int fir_used = (fir_len - 1 - idx + dsbfirstep - 1) / dsbfirstep;
+
+        int j;
+        float sum = 0.0;
+        float* cache = &input[ipos];
+
+        for (j = 0; j < fir_used; j++)
+            sum += (fir[idx + j * dsbfirstep] * (1.0f - rem) + fir[idx + j * dsbfirstep + 1] * rem) * cache[j];
+        output[i] = sum * firgain;
+    }
+}
+
 static UINT cp_fields_resample(IDirectSoundBufferImpl *dsb, UINT count, LONG64 *freqAccNum)
 {
     UINT i, channel;
@@ -364,26 +389,9 @@ static UINT cp_fields_resample(IDirectSoundBufferImpl *dsb, UINT count, LONG64 *
                     dsb->buflen, dsb->sec_mixpos + i * istride, channel);
     }
 
-    for (channel = 0; channel < channels; channel++) {
-        for(i = 0; i < count; ++i) {
-            LONG64 ipos_num = freqAcc_start + i * dsb->freqAdjustNum;
-            UINT ipos = ipos_num / dsb->freqAdjustDen;
-
-            UINT idx_num = ipos_num % dsb->freqAdjustDen * dsbfirstep;
-            UINT idx = dsbfirstep - 1 - idx_num / dsb->freqAdjustDen;
-            float rem = 1.0f - idx_num % dsb->freqAdjustDen / (float)dsb->freqAdjustDen;
-
-            int fir_used = (fir_len - 1 - idx + dsbfirstep - 1) / dsbfirstep;
-
-            int j;
-            float sum = 0.0;
-            float* cache = &intermediate[channel * required_input + ipos];
-
-            for (j = 0; j < fir_used; j++)
-                sum += (fir[idx + j * dsbfirstep] * (1.0f - rem) + fir[idx + j * dsbfirstep + 1] * rem) * cache[j];
-            output[channel * count + i] = sum * dsb->firgain;
-        }
-    }
+    for (channel = 0; channel < channels; channel++)
+        resample(dsb->freqAdjustNum, dsb->freqAdjustDen, freqAcc_start, dsbfirstep, dsb->firgain,
+                count, intermediate + channel * required_input, output + channel * count);
 
     for(i = 0; i < count; ++i)
         for (channel = 0; channel < channels; channel++)
