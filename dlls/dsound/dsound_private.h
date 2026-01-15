@@ -146,7 +146,6 @@ struct IDirectSoundBufferImpl
     DSVOLUMEPAN                 volpan;
     DSBUFFERDESC                dsbd;
     /* used for frequency conversion (PerfectPitch) */
-    ULONG                       freqneeded;
     DWORD                       firstep;
     float                       firgain;
     LONG64                      freqAdjustNum,freqAdjustDen;
