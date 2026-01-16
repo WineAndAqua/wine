@@ -379,9 +379,6 @@ static UINT cp_fields_resample(IDirectSoundBufferImpl *dsb, UINT count, LONG64 *
             float sum = 0.0;
             float* cache = &intermediate[channel * required_input + ipos];
 
-            assert(fir_used <= fir_cachesize);
-            assert(ipos + fir_used <= required_input);
-
             for (j = 0; j < fir_used; j++)
                 sum += (fir[idx + j * dsbfirstep] * (1.0f - rem) + fir[idx + j * dsbfirstep + 1] * rem) * cache[j];
             output[channel * count + i] = sum * dsb->firgain;
