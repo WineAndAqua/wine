@@ -27,7 +27,6 @@
 #include <winternl.h>
 #include <winreg.h>
 #include "wine/test.h"
-#include "wine/heap.h"
 #include "wine/rbtree.h"
 
 #ifndef STATUS_DEBUGGER_INACTIVE

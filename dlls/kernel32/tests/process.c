@@ -36,7 +36,6 @@
 #include "tlhelp32.h"
 
 #include "wine/test.h"
-#include "wine/heap.h"
 
 /* PROCESS_ALL_ACCESS in Vista+ PSDKs is incompatible with older Windows versions */
 #define PROCESS_ALL_ACCESS_NT4 (PROCESS_ALL_ACCESS & ~0xf000)
