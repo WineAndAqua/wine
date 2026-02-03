@@ -2459,6 +2459,7 @@ static inline BOOL check_invalid_gsbase( ucontext_t *ucontext )
     ULONG_PTR cur_gsbase = 0;
 
     if (CS_sig(ucontext) != cs64_sel) return FALSE;
+    if (((ERROR_sig(ucontext) >> 1) & 0x09) == EXCEPTION_EXECUTE_FAULT) return FALSE;
 
 #ifdef __linux__
     if (user_shared_data->ProcessorFeatures[PF_RDWRFSGSBASE_AVAILABLE])
