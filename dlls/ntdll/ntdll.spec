@@ -1764,3 +1764,6 @@
 @ cdecl wine_get_version()
 @ cdecl wine_get_build_id()
 @ cdecl wine_get_host_version(ptr ptr)
+
+# CW HACK 22435
+@ stdcall __wine_unix_call(int64 long ptr) __wine_unix_call_exported
