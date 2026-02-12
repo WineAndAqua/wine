@@ -2996,14 +2996,22 @@ static const struct vulkan_driver_funcs lazydrv_funcs =
 
 static void vulkan_init_once(void)
 {
+#ifdef SONAME_LIBVULKAN
+    const char *libvulkan;
+#endif
     struct vulkan_instance_extensions extensions = {0};
     VkExtensionProperties *properties = NULL;
     uint32_t count = 0;
     VkResult res;
 
 #ifdef SONAME_LIBVULKAN
-    vulkan_handle = dlopen( SONAME_LIBVULKAN, RTLD_NOW );
-    if (!vulkan_handle) ERR( "Failed to load %s\n", SONAME_LIBVULKAN );
+    if (!(libvulkan = getenv( "CX_LIBVULKAN" )))
+        libvulkan = SONAME_LIBVULKAN;
+    else
+        ERR( "Using %s\n", libvulkan );
+
+    if (!(vulkan_handle = dlopen( libvulkan, RTLD_NOW )))
+        ERR( "Failed to load %s: %s\n", libvulkan, dlerror() );
 #else
     ERR( "Wine was built without Vulkan support.\n" );
 #endif
