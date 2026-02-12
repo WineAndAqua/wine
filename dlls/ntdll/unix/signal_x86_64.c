@@ -63,14 +63,6 @@
 #endif
 #ifdef __APPLE__
 # include <mach/mach.h>
-/* _thread_set_tsd_base is private API for setting GSBASE, added in macOS 10.12.
- * It's a small thunk that sets %eax, zeroes %esi, and does the syscall (which clobbers
- * %rcx and %r11).
- * See https://github.com/apple-oss-distributions/xnu/blob/main/libsyscall/custom/custom.s
- * or libsystem_kernel.dylib.
- * Note that the dispatchers do the syscall directly to avoid using the stack.
- */
-extern void _thread_set_tsd_base(uint64_t);
 #endif
 
 #include "ntstatus.h"
@@ -525,7 +517,7 @@ static unsigned int frame_size;
 static unsigned int xstate_size = sizeof(XSAVE_AREA_HEADER);
 static UINT64 xstate_extended_features;
 
-#if defined(__linux__) || defined(__APPLE__)
+#ifdef __linux__
 static inline TEB *get_current_teb(void)
 {
     unsigned long rsp;
@@ -916,9 +908,6 @@ static inline ucontext_t *init_handler( void *sigcontext )
     }
 #elif defined __APPLE__
     {
-        struct ntdll_thread_data *thread_data = (struct ntdll_thread_data *)&get_current_teb()->GdiTebBatch;
-        _thread_set_tsd_base( (uint64_t)((struct amd64_thread_data *)thread_data->cpu_data)->pthread_teb );
-
         /* When in a syscall, CS will be the kernel's selector (0x07, SYSCALL_CS in xnu source)
          * instead of the user selector (cs64_sel: 0x2b, USER64_CS).
          * Fix up sigcontext so later code can compare it to cs64_sel.
@@ -943,10 +932,6 @@ static inline void leave_handler( ucontext_t *sigcontext )
         !is_inside_signal_stack( (void *)RSP_sig(sigcontext )) &&
         !is_inside_syscall( RSP_sig(sigcontext) ))
         __asm__ volatile( "movw %0,%%fs" :: "r" (fs32_sel) );
-#elif defined __APPLE__
-    if (!is_inside_signal_stack( (void *)RSP_sig(sigcontext )) &&
-        !is_inside_syscall( RSP_sig(sigcontext )))
-        _thread_set_tsd_base( (uint64_t)NtCurrentTeb() );
 #endif
     if (is_16bit( sigcontext )) return;
 #ifdef DS_sig
@@ -1825,13 +1810,6 @@ __ASM_GLOBAL_FUNC( call_user_mode_callback,
                    "jz 1f\n\t"
                    "movw %ax,%fs\n"
                    "1:\n\t"
-#elif defined __APPLE__
-                   "movq %rcx,%r10\n\t"
-                   "movq %r13,%rdi\n\t"
-                   "xorl %esi,%esi\n\t"
-                   "movl $0x3000003,%eax\n\t"  /* _thread_set_tsd_base */
-                   "syscall\n\t"
-                   "movq %r10,%rcx\n\t"
 #endif
                    "movq 0x330(%r13),%r10\n\t" /* amd64_thread_data()->instrumentation_callback */
                    "movq (%r10),%r10\n\t"
@@ -3065,8 +3043,14 @@ void init_syscall_frame( LPTHREAD_START_ROUTINE entry, void *arg, BOOL suspend, 
 #elif defined(__NetBSD__)
     sysarch( X86_64_SET_GSBASE, &teb );
 #elif defined (__APPLE__)
+    __asm__ volatile ("movq %0,%%gs:%c1" :: "r" (teb->Tib.Self), "n" (FIELD_OFFSET(TEB, Tib.Self)));
+    __asm__ volatile ("movq %0,%%gs:%c1" :: "r" (teb->ThreadLocalStoragePointer), "n" (FIELD_OFFSET(TEB, ThreadLocalStoragePointer)));
     __asm__ volatile ("movq %0,%%gs:%c1" :: "r" (teb->Peb), "n" (FIELD_OFFSET(TEB, Peb)));
     thread_data->pthread_teb = mac_thread_gsbase();
+    /* alloc_tls_slot() needs to poke a value to an address relative to each
+       thread's gsbase.  Have each thread record its gsbase pointer into its
+       TEB so alloc_tls_slot() can find it. */
+    teb->Instrumentation[0] = thread_data->pthread_teb;
 #else
 # error Please define setting %gs for your architecture
 #endif
@@ -3175,7 +3159,12 @@ __ASM_GLOBAL_FUNC( signal_start_thread,
  */
 __ASM_GLOBAL_FUNC( __wine_syscall_dispatcher,
                    __ASM_LOCAL_LABEL("__wine_syscall_dispatcher_gs_load") ":\n\t"
+#ifdef __APPLE__
+                   "movq %gs:0x30,%rcx\n\t"
+                   "movq 0x378(%rcx),%rcx\n\t"
+#else
                    "movq %gs:0x378,%rcx\n\t"       /* thread_data->syscall_frame */
+#endif
                    "popq 0x70(%rcx)\n\t"           /* frame->rip */
                    __ASM_CFI(".cfi_adjust_cfa_offset -8\n\t")
                    __ASM_CFI_REG_IS_AT2(rip, rcx, 0xf0,0x00)
@@ -3276,12 +3265,6 @@ __ASM_GLOBAL_FUNC( __wine_syscall_dispatcher,
                    "syscall\n\t"
                    "leaq -0x98(%rbp),%rcx\n"
                    "2:\n\t"
-#elif defined __APPLE__
-                   "movq 0x320(%r13),%rdi\n\t"     /* amd64_thread_data()->pthread_teb */
-                   "xorl %esi,%esi\n\t"
-                   "movl $0x3000003,%eax\n\t"      /* _thread_set_tsd_base */
-                   "syscall\n\t"
-                   "leaq -0x98(%rbp),%rcx\n"
 #endif
                    "ldmxcsr 0x33c(%r13)\n\t"       /* amd64_thread_data()->mxcsr */
                    "movl 0xb0(%rcx),%eax\n\t"      /* frame->syscall_id */
@@ -3328,15 +3311,6 @@ __ASM_GLOBAL_FUNC( __wine_syscall_dispatcher,
                    "jz 1f\n\t"
                    "movw %dx,%fs\n"
                    "1:\n\t"
-#elif defined __APPLE__
-                   "movq %rax,%r8\n\t"
-                   "movq %rcx,%rdx\n\t"
-                   "movq %r13,%rdi\n\t"            /* teb */
-                   "xorl %esi,%esi\n\t"
-                   "movl $0x3000003,%eax\n\t"      /* _thread_set_tsd_base */
-                   "syscall\n\t"
-                   "movq %rdx,%rcx\n\t"
-                   "movq %r8,%rax\n\t"
 #endif
                    "movl 0xb4(%rcx),%edx\n\t"      /* frame->restore_flags */
                    "testl $0x48,%edx\n\t"          /* CONTEXT_FLOATING_POINT | CONTEXT_XSTATE */
@@ -3425,7 +3399,12 @@ __ASM_GLOBAL_FUNC( __wine_syscall_dispatcher,
                    "popfq\n\t"
                    "iretq\n"
                    /* RESTORE_FLAGS_INSTRUMENTATION */
+#ifdef __APPLE__
+                   "2:\tmovq %gs:0x30,%r10\n\t"
+                   "movq 0x330(%r10),%r10\n\t"
+#else
                    "2:\tmovq %gs:0x330,%r10\n\t"  /* amd64_thread_data()->instrumentation_callback */
+#endif
                    "movq (%r10),%r10\n\t"
                    "test %r10,%r10\n\t"
                    "jz 3b\n\t"
@@ -3484,7 +3463,12 @@ __ASM_GLOBAL_FUNC( __wine_syscall_dispatcher_return,
                    "jmp " __ASM_LOCAL_LABEL("__wine_syscall_dispatcher_return") )
 
 __ASM_GLOBAL_FUNC( __wine_syscall_dispatcher_instrumentation,
+#ifdef __APPLE__
+                   "movq %gs:0x30,%rcx\n\t"
+                   "movq 0x378(%rcx),%rcx\n\t"
+#else
                    "movq %gs:0x378,%rcx\n\t"       /* thread_data->syscall_frame */
+#endif
                    "popq 0x70(%rcx)\n\t"           /* frame->rip */
                    __ASM_CFI(".cfi_adjust_cfa_offset -8\n\t")
                    __ASM_CFI_REG_IS_AT2(rip, rcx, 0xf0,0x00)
@@ -3502,7 +3486,12 @@ __ASM_GLOBAL_FUNC( __wine_syscall_dispatcher_instrumentation,
 __ASM_GLOBAL_FUNC( __wine_unix_call_dispatcher,
                    "movq %rcx,%r10\n\t"
                    __ASM_LOCAL_LABEL("__wine_unix_call_dispatcher_gs_load") ":\n\t"
+#ifdef __APPLE__
+                   "movq %gs:0x30,%rcx\n\t"
+                   "movq 0x378(%rcx),%rcx\n\t"
+#else
                    "movq %gs:0x378,%rcx\n\t"       /* thread_data->syscall_frame */
+#endif
                    "popq 0x70(%rcx)\n\t"           /* frame->rip */
                    __ASM_CFI(".cfi_adjust_cfa_offset -8\n\t")
                    __ASM_CFI_REG_IS_AT2(rip, rcx, 0xf0,0x00)
@@ -3564,11 +3553,6 @@ __ASM_GLOBAL_FUNC( __wine_unix_call_dispatcher,
                    "mov $158,%eax\n\t"             /* SYS_arch_prctl */
                    "syscall\n\t"
                    "2:\n\t"
-#elif defined __APPLE__
-                   "movq 0x320(%r13),%rdi\n\t"     /* amd64_thread_data()->pthread_teb */
-                   "xorl %esi,%esi\n\t"
-                   "movl $0x3000003,%eax\n\t"      /* _thread_set_tsd_base */
-                   "syscall\n\t"
 #endif
                    "ldmxcsr 0x33c(%r13)\n\t"       /* amd64_thread_data()->mxcsr */
                    "movq %r8,%rdi\n\t"             /* args */
@@ -3596,16 +3580,6 @@ __ASM_GLOBAL_FUNC( __wine_unix_call_dispatcher,
                    "jz 1f\n\t"
                    "movw %dx,%fs\n"
                    "1:\n\t"
-#elif defined __APPLE__
-                   "movq %rax,%rdx\n\t"
-                   "movq %rcx,%r14\n\t"
-                   "movq %r13,%rdi\n\t"            /* teb */
-                   "xorl %esi,%esi\n\t"
-                   "movl $0x3000003,%eax\n\t"      /* _thread_set_tsd_base */
-                   "syscall\n\t"
-                   "movq %r14,%rcx\n\t"
-                   "movq %rdx,%rax\n\t"
-                   "movq 0x60(%rcx),%r14\n\t"
 #endif
                    "movq 0x58(%rcx),%r13\n\t"
                    "movq 0x28(%rcx),%rdi\n\t"
