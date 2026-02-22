@@ -4757,6 +4757,8 @@ static void output_dependencies( struct makefile *make )
     strarray_addall( &ignore_files, make->clean_files );
     if (make->testdll) output_testlist( make );
     if (make->obj_dir && !strcmp( make->obj_dir, "po" )) output_linguas( make );
+    strarray_add_uniq( &ignore_files, ".cache" );
+    strarray_add_uniq( &ignore_files, ".o" );
     if (!make->src_dir) output_gitignore( obj_dir_path( make, ".gitignore" ), ignore_files );
 
     create_file_directories( make, ignore_files );
