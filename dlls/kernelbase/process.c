@@ -511,8 +511,8 @@ static WCHAR *hack_replace_command_line(const WCHAR *cmd)
     }
     replacements[] =
     {
-        { L"\\Baldurs Gate 3\\Launcher\\LariLauncher.exe",
-          L"\\Baldurs Gate 3\\bin\\bg3_dx11.exe" },
+        { L"\\bin\\x64_dx12\\witcher3.exe",
+          L"\\bin\\x64\\witcher3.exe" },
     };
     WCHAR *new_command, *pos;
     SIZE_T substring_len, replacement_len, new_len;
