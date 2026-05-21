@@ -231,11 +231,71 @@ static INT macdrv_GetDeviceCaps(PHYSDEV dev, INT cap)
 }
 
 
+/***********************************************************************
+ *              ExtEscape (MACDRV.@)
+ */
+static INT macdrv_ExtEscape(PHYSDEV dev, INT escape, INT in_count, LPCVOID in_data,
+                            INT out_count, LPVOID out_data)
+{
+    switch (escape)
+    {
+    case QUERYESCSUPPORT:
+        if (in_data && in_count >= sizeof(DWORD))
+        {
+            switch (*(const INT *)in_data)
+            {
+            case MACDRV_ESCAPE_GET_SURFACE:
+            case MACDRV_ESCAPE_RELEASE_SURFACE:
+                return TRUE;
+            }
+        }
+        break;
+
+    case MACDRV_ESCAPE_GET_SURFACE:
+    {
+        struct macdrv_escape_surface *data = out_data;
+        struct macdrv_client_surface *surface;
+        HWND hwnd = NtUserWindowFromDC(dev->hdc);
+
+        if (out_count < sizeof(*data)) return FALSE;
+
+        if (!hwnd || !(surface = macdrv_client_surface_create(hwnd))) return FALSE;
+
+        if (!macdrv_client_surface_acquire_metal_swapchain(surface))
+        {
+            client_surface_release(&surface->client);
+            return FALSE;
+        }
+
+        data->surface = (UINT_PTR)surface;
+        data->layer = (UINT_PTR)macdrv_swapchain_get_layer(surface->metal_swapchain);
+        return TRUE;
+    }
+    case MACDRV_ESCAPE_RELEASE_SURFACE:
+    {
+        const struct macdrv_escape_surface *data = in_data;
+        struct macdrv_client_surface *surface;
+
+        if (in_count < sizeof(*data)) return FALSE;
+
+        if (!data) return FALSE;
+
+        surface = (struct macdrv_client_surface *)(UINT_PTR)data->surface;
+        if (surface) client_surface_release(&surface->client);
+        return TRUE;
+    }
+    }
+
+    return FALSE;
+}
+
+
 static const struct user_driver_funcs macdrv_funcs =
 {
     .dc_funcs.pCreateCompatibleDC = macdrv_CreateCompatibleDC,
     .dc_funcs.pCreateDC = macdrv_CreateDC,
     .dc_funcs.pDeleteDC = macdrv_DeleteDC,
+    .dc_funcs.pExtEscape = macdrv_ExtEscape,
     .dc_funcs.pGetDeviceCaps = macdrv_GetDeviceCaps,
     .dc_funcs.pGetDeviceGammaRamp = macdrv_GetDeviceGammaRamp,
     .dc_funcs.pSetDeviceGammaRamp = macdrv_SetDeviceGammaRamp,
