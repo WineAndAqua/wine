@@ -1364,6 +1364,12 @@ NTSTATUS load_builtin( const struct pe_image_info *image_info, UNICODE_STRING *n
         return find_builtin_dll( nt_name, exp_name, module, size, info, limit_low, limit_high,
                                  search_machine, machine, FALSE, offset );
     default:
+        if (exp_name && exp_name->Length == sizeof("nvapi.dll") - 1 && strncasecmp( exp_name->Buffer, "nvapi.dll", exp_name->Length ) == 0) {
+            static const char nvapi64[] = "nvapi64.dll";
+            exp_name->Buffer = (char*)nvapi64;
+            exp_name->Length = sizeof(nvapi64) - 1;
+            exp_name->MaximumLength = sizeof(nvapi64);
+        }
         status = find_builtin_dll( nt_name, exp_name, module, size, info, limit_low, limit_high,
                                    search_machine, machine, (loadorder == LO_DEFAULT), offset );
         if (status == STATUS_DLL_NOT_FOUND || status == STATUS_NOT_SUPPORTED)
