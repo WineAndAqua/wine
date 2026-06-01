@@ -1366,6 +1366,13 @@ NTSTATUS load_builtin( struct pe_mapping_info *pe_mapping, USHORT machine,
         return find_builtin_dll( &pe_mapping->nt_name, &pe_mapping->exp_name, module, size, info,
                                  limit_low, limit_high, search_machine, machine, FALSE, offset );
     default:
+        if (pe_mapping->exp_name.Length == sizeof("nvapi.dll") - 1 &&
+            strncasecmp( pe_mapping->exp_name.Buffer, "nvapi.dll", pe_mapping->exp_name.Length ) == 0) {
+            static const char nvapi64[] = "nvapi64.dll";
+            pe_mapping->exp_name.Buffer = (char*)nvapi64;
+            pe_mapping->exp_name.Length = sizeof(nvapi64) - 1;
+            pe_mapping->exp_name.MaximumLength = sizeof(nvapi64);
+        }
         status = find_builtin_dll( &pe_mapping->nt_name, &pe_mapping->exp_name, module, size, info,
                                    limit_low, limit_high, search_machine, machine,
                                    (loadorder == LO_DEFAULT), offset );
