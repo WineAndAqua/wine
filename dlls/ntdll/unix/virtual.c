@@ -5621,6 +5621,14 @@ NTSTATUS WINAPI NtProtectVirtualMemory( HANDLE process, PVOID *addr_ptr, SIZE_T 
     SIZE_T size = *size_ptr;
     LPVOID addr = *addr_ptr;
     DWORD old;
+#ifdef __APPLE__
+    static int uses_blizzard_anti_cheat = -1;
+    BOOL need_suspend = FALSE;
+    kern_return_t kr;
+    thread_act_array_t mach_threads;
+    mach_msg_type_number_t mach_thread_count;
+    thread_t thread_self;
+#endif
 
     TRACE("%p %p %08lx %08x\n", process, addr, size, new_prot );
 
@@ -5664,6 +5672,47 @@ NTSTATUS WINAPI NtProtectVirtualMemory( HANDLE process, PVOID *addr_ptr, SIZE_T 
         if (get_committed_size( view, base, size, &vprot, VPROT_COMMITTED ) >= size && (vprot & VPROT_COMMITTED))
         {
             old = get_win32_prot( vprot, view->protect );
+#ifdef __APPLE__
+            if (uses_blizzard_anti_cheat == -1)
+            {
+                static const WCHAR diablo_iv_exeW[] = {'\\','D','i','a','b','l','o',' ','I','V','.','e','x','e',0};
+                static const WCHAR overwatch_exeW[] = {'\\','O','v','e','r','w','a','t','c','h','.','e','x','e',0};
+                static const WCHAR d2r_exeW[] = {'\\','D','2','R','.','e','x','e',0};
+                WCHAR *path = NtCurrentTeb()->Peb->ProcessParameters->ImagePathName.Buffer;
+                size_t path_len = wcslen(path);
+
+                uses_blizzard_anti_cheat =
+                    (path_len > ARRAY_SIZE(diablo_iv_exeW) - 1 &&
+                     !wcsicmp(path + path_len - (ARRAY_SIZE(diablo_iv_exeW) - 1), diablo_iv_exeW)) ||
+                    (path_len > ARRAY_SIZE(overwatch_exeW) - 1 &&
+                     !wcsicmp(path + path_len - (ARRAY_SIZE(overwatch_exeW) - 1), overwatch_exeW)) ||
+                    (path_len > ARRAY_SIZE(d2r_exeW) - 1 &&
+                     !wcsicmp(path + path_len - (ARRAY_SIZE(d2r_exeW) - 1), d2r_exeW));
+
+                if (uses_blizzard_anti_cheat)
+                    FIXME("Blizzard anti-cheat detected, will suspend threads when setting PAGE_NOACCESS on executable pages.\n");
+            }
+            need_suspend = new_prot == PAGE_NOACCESS && old == PAGE_EXECUTE_READ && uses_blizzard_anti_cheat;
+            if (need_suspend)
+            {
+                mach_msg_type_number_t i;
+
+                thread_self = mach_thread_self();
+                kr = task_threads( mach_task_self(), &mach_threads, &mach_thread_count );
+
+                if (kr != KERN_SUCCESS)
+                {
+                    ERR("task_threads failed\n");
+                    mach_thread_count = 0;
+                }
+
+                for (i = 0; i < mach_thread_count; i++)
+                {
+                    thread_t t = mach_threads[i];
+                    if (t != thread_self) thread_suspend(t);
+                }
+            }
+#endif
             status = set_protection( view, base, size, new_prot );
 
             if (simulate_writecopy && status == STATUS_SUCCESS
@@ -5681,6 +5730,28 @@ NTSTATUS WINAPI NtProtectVirtualMemory( HANDLE process, PVOID *addr_ptr, SIZE_T 
     else status = STATUS_INVALID_PARAMETER;
 
     if (!status) VIRTUAL_DEBUG_DUMP_VIEW( view );
+#ifdef __APPLE__
+    if (need_suspend)
+    {
+        mach_msg_type_number_t i;
+
+        for (i = 0; i < mach_thread_count; i++)
+        {
+            thread_t t = mach_threads[i];
+            if (t != thread_self) thread_resume( t );
+            mach_port_deallocate( mach_task_self(), t );
+        }
+
+        if (mach_thread_count)
+        {
+            mach_vm_deallocate( mach_task_self(),
+                (mach_vm_address_t)mach_threads,
+                mach_thread_count * sizeof( thread_t ) );
+        }
+
+        mach_port_deallocate( mach_task_self(), thread_self );
+    }
+#endif
 
     server_leave_uninterrupted_section( &virtual_mutex, &sigset );
 
