@@ -559,7 +559,7 @@ static const WCHAR *hack_append_command_line( const WCHAR *cmd, const WCHAR *cmd
     }
     options[] =
     {
-        {L"steamwebhelper.exe", L" --in-process-gpu", NULL, L"--type=crashpad-handler"},
+        {L"steamwebhelper.exe", L" --disable-gpu --in-process-gpu", NULL, L"--type=crashpad-handler"},
         {L"Battle.net.exe", L" --in-process-gpu", NULL, NULL},
         {L"redprelauncher.exe", L" --launcher-skip", NULL, NULL},
         {L"REDprelauncher.exe", L" --launcher-skip", NULL, NULL},
